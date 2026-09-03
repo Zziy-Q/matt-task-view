@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>架构设计卡片原型</title>
+  <style>
+    :root {
+      --primary:#0077fa; --primary-dark:#005ec7; --primary-soft:#edf6ff; --primary-wash:#f7fbff;
+      --canvas:#f4f7fb; --surface:#fff; --subtle:#fbfcfe; --text:#1d2129; --secondary:#4e5969;
+      --tertiary:#86909c; --line:#e6ebf2; --line-strong:#d9e2ef; --success:#38aa43;
+      --success-soft:#f3fbf4; --warning:#f08c00; --warning-soft:#fff8eb; --danger:#d94141;
+      --danger-soft:#fff3f3; --shadow:0 14px 36px rgb(32 54 88 / 8%); --radius:12px;
+      color:var(--text); background:var(--canvas);
+      font-family:"PingFang SC","SF Pro Text","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box} body{min-width:320px;margin:0;background:var(--canvas)} button,select{font:inherit}
+    button{cursor:pointer}.app{min-height:100vh;background:var(--surface)}
+    .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:17px clamp(16px,4vw,26px);background:rgb(255 255 255 / 94%);border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}
+    .title-wrap{min-width:0}.eyebrow{display:flex;align-items:center;gap:7px;margin-bottom:4px;color:var(--primary);font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}
+    .prototype-dot{width:7px;height:7px;background:var(--warning);border-radius:50%;box-shadow:0 0 0 3px #fff0d4}
+    h1{margin:0;font-size:clamp(19px,4vw,24px);font-weight:680;letter-spacing:-.025em}
+    .scenario-select{max-width:47%;height:35px;padding:5px 10px;color:var(--secondary);background:#fff;border:1px solid var(--line-strong);border-radius:8px}
+    .page{max-width:1180px;margin:auto;padding:22px clamp(16px,4vw,26px) 116px}
+    .intro{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .intro h2{margin:0 0 5px;font-size:16px}.intro p{max-width:680px;margin:0;color:var(--secondary);font-size:12px;line-height:1.55}
+    .status-pill,.chip{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border-radius:999px;font-size:11px;font-weight:620}
+    .status-pill{padding:6px 10px}.chip{padding:4px 8px;color:var(--secondary);background:#f3f6fa;border:1px solid var(--line)}
+    .tone-progress{color:var(--primary);background:var(--primary-soft)}.tone-ok{color:#24852e;background:var(--success-soft)}
+    .tone-warning{color:#9a5a00;background:var(--warning-soft)}.tone-danger{color:#b83434;background:var(--danger-soft)}
+    .tone-muted{color:var(--secondary);background:#f3f6fa}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 2px 8px rgb(32 54 88 / 3%)}
+    .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 16px;border-bottom:1px solid var(--line)}
+    .card-head h3{margin:0;font-size:14px}.card-head p{margin:4px 0 0;color:var(--tertiary);font-size:11px;line-height:1.45}
+    .facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--line)}
+    .fact{min-width:0;padding:12px 14px;border-right:1px solid var(--line)}.fact:last-child{border-right:0}
+    .fact span,.fact strong{display:block}.fact span{color:var(--tertiary);font-size:10px}.fact strong{margin-top:5px;overflow:hidden;color:var(--text);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+    .frame-shell{position:relative;overflow:hidden;background:#f9fbff;border:1px solid #dce7f6;border-radius:10px}
+    iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+    .frame-label{position:absolute;top:10px;left:10px;z-index:2;padding:4px 7px;color:#31547c;background:rgb(255 255 255 / 90%);border:1px solid #dce7f6;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.08em;pointer-events:none}
+    .frame-open{position:absolute;top:9px;right:9px;z-index:3;padding:5px 8px;color:var(--primary);background:rgb(255 255 255 / 94%);border:1px solid #dce7f6;border-radius:6px;font-size:9px;font-weight:650;text-decoration:none;box-shadow:0 2px 7px rgb(32 54 88 / 8%)}
+    .frame-open:hover{border-color:#9ccaff;background:#f5faff}.frame-overview{display:none}
+    .next-action{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;color:var(--secondary);background:var(--primary-wash);border:1px solid #dbeafb;border-radius:8px;font-size:12px;line-height:1.5}
+    .next-action strong{color:var(--primary)}.next-action.warning{background:var(--warning-soft);border-color:#ffe0aa}.next-action.warning strong{color:#9a5a00}
+    .next-action.danger{background:var(--danger-soft);border-color:#f3caca}.next-action.danger strong{color:var(--danger)}
+    .phase-icon{display:grid;width:28px;height:28px;flex:0 0 auto;place-items:center;color:var(--primary);background:var(--primary-soft);border-radius:8px;font-size:12px;font-weight:750}
+    .phase-icon.ok{color:#24852e;background:var(--success-soft)}.phase-icon.locked{color:#9aa6b4;background:#f2f4f7}
+    .phase-icon.warn{color:#9a5a00;background:var(--warning-soft)}
+    .phase-list{overflow:hidden;border:1px solid var(--line);border-radius:var(--radius)}
+    .phase-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:62px;padding:10px 13px;background:#fff;border-bottom:1px solid var(--line)}
+    .phase-row:last-child{border-bottom:0}.phase-row.active{background:var(--primary-wash);box-shadow:inset 3px 0 var(--primary)}
+    .phase-row h3{margin:0;font-size:13px}.phase-row p{margin:3px 0 0;color:var(--tertiary);font-size:11px}
+    .architecture-expanded{padding:14px 13px 16px 53px;background:#fcfdff;border-bottom:1px solid var(--line)}
+    .architecture-expanded .frame-shell{height:330px;margin:12px 0}
+    .compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.compact-stat{padding:9px;background:#fff;border:1px solid var(--line);border-radius:8px}
+    .compact-stat span,.compact-stat strong{display:block}.compact-stat span{color:var(--tertiary);font-size:9px}.compact-stat strong{margin-top:4px;font-size:11px}
+    .locked-plan{opacity:.62}.lock-copy{color:var(--tertiary);font-size:11px}.lock-copy strong{color:var(--secondary)}
+    .task-list{display:grid;gap:8px;padding:0;margin:0;list-style:none}.task{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:start;gap:9px;padding:11px;background:#fff;border:1px solid var(--line);border-radius:9px}
+    .task-no{display:grid;width:24px;height:24px;place-items:center;color:var(--primary);background:var(--primary-soft);border-radius:7px;font-size:10px;font-weight:700}
+    .task h4{margin:0;font-size:12px}.task p{margin:4px 0 0;color:var(--tertiary);font-size:10px;line-height:1.45}.task .chip{align-self:center}
+    .debug{margin-top:18px;padding:12px 14px;background:#f8fafc;border:1px dashed #cad5e3;border-radius:9px}
+    .debug summary{color:var(--secondary);font-size:11px;cursor:pointer}.debug pre{overflow:auto;margin:10px 0 0;color:#44546a;font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
+
+    /* A: the architecture is a native fifth-stage card in the existing vertical SDD stack. */
+    .variant-a .architecture-expanded{display:block}.variant-a .phase-list{box-shadow:var(--shadow)}
+
+    /* B: canvas-first workbench; the diagram owns the centre and stages become navigation. */
+    .workbench{display:grid;grid-template-columns:178px minmax(0,1fr) 235px;min-height:640px;overflow:hidden;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+    .rail{padding:12px;background:#f8fafd;border-right:1px solid var(--line)}.rail h3{margin:3px 5px 12px;font-size:11px;color:var(--tertiary);text-transform:uppercase;letter-spacing:.08em}
+    .rail-step{display:flex;gap:9px;padding:10px 9px;color:var(--secondary);border-radius:8px;font-size:11px;line-height:1.35}
+    .rail-step.active{color:var(--primary);background:#eaf4ff;font-weight:650}.rail-step .bullet{width:18px;height:18px;flex:0 0 auto;border:1px solid #bdc9d8;border-radius:50%;text-align:center;line-height:16px;font-size:9px}
+    .rail-step.done .bullet{color:#fff;background:var(--success);border-color:var(--success)}
+    .canvas-pane{min-width:0;padding:16px;background:#fff}.canvas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .canvas-toolbar h3{margin:0;font-size:14px}.canvas-tabs{display:flex;gap:3px;padding:3px;background:#f2f5f9;border-radius:7px}.canvas-tabs span{padding:5px 7px;color:var(--tertiary);font-size:9px;border-radius:5px}.canvas-tabs .active{color:var(--primary);background:#fff;box-shadow:0 1px 3px rgb(20 40 70 / 9%)}
+    .workbench .frame-shell{height:480px}.review-pane{padding:15px;background:#fbfcfe;border-left:1px solid var(--line)}
+    .review-pane h3{margin:0 0 12px;font-size:13px}.review-section{padding:12px 0;border-top:1px solid var(--line)}.review-section:first-of-type{border-top:0;padding-top:0}
+    .review-section h4{margin:0 0 7px;color:var(--tertiary);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+    .review-row{display:flex;justify-content:space-between;gap:8px;margin:6px 0;color:var(--secondary);font-size:10px}.review-row strong{color:var(--text);font-weight:620;text-align:right}
+    .component-list{display:flex;flex-wrap:wrap;gap:5px}.gate-line{height:5px;margin:10px 0;background:#e8edf4;border-radius:99px}.gate-line span{display:block;height:100%;background:var(--primary);border-radius:99px}
+
+    /* C: gate-first review board; truth and blocking decision come before the canvas. */
+    .gate-hero{position:relative;overflow:hidden;padding:19px;background:linear-gradient(130deg,#f7fbff,#fff);border:1px solid #dce9f8;border-radius:14px;box-shadow:var(--shadow)}
+    .gate-hero::after{position:absolute;right:-50px;bottom:-80px;width:210px;height:210px;background:radial-gradient(circle,rgb(0 119 250 / 13%),transparent 66%);content:"";pointer-events:none}
+    .gate-top{position:relative;z-index:1;display:flex;justify-content:space-between;gap:15px}.gate-top h2{margin:0;font-size:18px}.gate-top p{max-width:620px;margin:5px 0 0;color:var(--secondary);font-size:11px;line-height:1.5}
+    .gate-summary{position:relative;z-index:1;display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:16px}.gate-cell{padding:11px;background:rgb(255 255 255 / 86%);border:1px solid #dfeaf7;border-radius:9px}
+    .gate-cell span,.gate-cell strong{display:block}.gate-cell span{color:var(--tertiary);font-size:9px}.gate-cell strong{margin-top:5px;font-size:11px}
+    .timeline{display:grid;grid-template-columns:repeat(5,1fr);margin:19px 0}.timeline-step{position:relative;padding-top:17px;color:var(--tertiary);font-size:9px;text-align:center}.timeline-step::before{position:absolute;top:3px;left:50%;z-index:2;width:9px;height:9px;background:#fff;border:2px solid #bdc8d6;border-radius:50%;content:"";transform:translateX(-50%)}.timeline-step::after{position:absolute;top:8px;right:50%;left:-50%;height:1px;background:#d8e0ea;content:""}.timeline-step:first-child::after{display:none}.timeline-step.done::before{background:var(--success);border-color:var(--success)}.timeline-step.active{color:var(--primary);font-weight:650}.timeline-step.active::before{background:var(--primary);border-color:var(--primary);box-shadow:0 0 0 4px #dceeff}
+    .review-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,.55fr);gap:14px}.review-grid .frame-shell{height:440px}.trace-card{padding:15px}.trace-card h3{margin:0 0 11px;font-size:13px}
+    .trace-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:10px}.trace-row:first-of-type{border-top:0}.trace-row span{color:var(--secondary)}.trace-row strong{font-weight:620}.trace-arrow{color:var(--primary)}
+    .plan-strip{margin-top:14px;padding:14px}.plan-strip-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.plan-strip h3{margin:0;font-size:13px}.plan-tasks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+
+    .switcher{position:fixed;bottom:18px;left:50%;z-index:50;display:flex;align-items:center;gap:5px;padding:6px;color:#fff;background:#172033;border:1px solid rgb(255 255 255 / 15%);border-radius:999px;box-shadow:0 10px 28px rgb(0 0 0 / 25%);transform:translateX(-50%)}
+    .switcher button{display:grid;width:32px;height:32px;place-items:center;color:#fff;background:transparent;border:0;border-radius:50%;font-size:17px}.switcher button:hover{background:rgb(255 255 255 / 12%)}
+    .variant-label{min-width:172px;padding:0 8px;text-align:center}.variant-label strong,.variant-label span{display:block}.variant-label strong{font-size:11px}.variant-label span{margin-top:2px;color:#b8c5d9;font-size:9px}
+    .switcher-note{position:fixed;right:12px;bottom:15px;z-index:49;padding:6px 8px;color:#76531c;background:#fff8e7;border:1px solid #ffe1a8;border-radius:7px;font-size:9px}
+    @media(max-width:860px){.workbench{grid-template-columns:150px minmax(0,1fr)}.review-pane{grid-column:1/-1;border-top:1px solid var(--line);border-left:0}.review-grid{grid-template-columns:1fr}.trace-card{order:-1}.gate-summary{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:620px){
+      .page{padding-right:13px;padding-left:13px}.topbar{padding-right:13px;padding-left:13px}.intro{display:block}.intro .status-pill{margin-top:10px}
+      .facts{grid-template-columns:repeat(2,1fr)}.fact:nth-child(2){border-right:0}.fact:nth-child(-n+2){border-bottom:1px solid var(--line)}
+      .architecture-expanded{padding-left:13px}.compact-grid{grid-template-columns:1fr}.architecture-expanded .frame-shell{height:300px}
+      .workbench{display:block}.rail{display:flex;gap:4px;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.rail h3{display:none}.rail-step{min-width:max-content}.workbench .frame-shell{height:390px}
+      .frame-overview{position:absolute;right:10px;bottom:10px;left:10px;z-index:2;display:block;padding:8px 10px;color:#49627e;background:rgb(247 251 255 / 94%);border:1px solid #dce7f6;border-radius:7px;font-size:9px;line-height:1.45;text-align:center;pointer-events:none}
+      .gate-summary{grid-template-columns:1fr 1fr}.timeline-step{font-size:8px}.review-grid .frame-shell{height:350px}.plan-tasks{grid-template-columns:1fr}
+      .switcher-note{display:none}.variant-label{min-width:142px}.scenario-select{font-size:11px}
+    }
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+    @media print{.switcher,.switcher-note,.scenario-select,.debug{display:none!important}}
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <nav class="switcher" aria-label="原型方案切换">
+    <button id="previous" type="button" aria-label="上一个方案">←</button>
+    <div class="variant-label"><strong id="variant-name"></strong><span>仅用于比较，最终只保留一个方案</span></div>
+    <button id="next" type="button" aria-label="下一个方案">→</button>
+  </nav>
+  <div class="switcher-note">原型 · 只读场景</div>
+  <script>
+    const variants = {
+      A: "A · SDD 阶段卡片",
+      B: "B · 架构工作台",
+      C: "C · 门禁审查板"
+    };
+    const scenarios = {
+      greenfield: {
+        name:"绿地初始化", tone:"progress", badge:"架构初始化中", mode:"greenfield",
+        current:"不存在", target:"规划架构 v0", artifact:"草稿", approval:"尚未批准",
+        revision:"—", sourceSha:"4e17…c21a", approvedSha:"—", checks:"尚未交付",
+        next:"先完成高层目标架构并交付校验，再回到 Codex 对话批准精确版本摘要。",
+        planLocked:true, activeCheckpoint:"无", delta:"首次设计，无当前基线", progress:35,
+        focus:"planned"
+      },
+      pending: {
+        name:"待人工批准", tone:"warning", badge:"已校验 · 待批准", mode:"existing",
+        current:"恢复基线 v3", target:"目标架构 v4", artifact:"9/9 校验通过", approval:"等待用户批准",
+        revision:"待批准", sourceSha:"a81c…0e4b", approvedSha:"—", checks:"9 / 9",
+        next:"在 Codex 对话中审查目标结构，并明确批准版本摘要 a81c…0e4b。",
+        planLocked:true, activeCheckpoint:"无", delta:"新增架构读取器与安全 artifact route", progress:58,
+        focus:"approval"
+      },
+      approved: {
+        name:"已批准并可拆任务", tone:"ok", badge:"架构已批准", mode:"existing",
+        current:"恢复基线 v3", target:"目标架构 v4", artifact:"9/9 校验通过", approval:"用户已批准",
+        revision:"a81c…0e4b", sourceSha:"a81c…0e4b", approvedSha:"a81c…0e4b", checks:"9 / 9",
+        next:"架构门禁已通过；任务拆分可以基于组件边界生成垂直工单。",
+        planLocked:false, activeCheckpoint:"无", delta:"新增架构读取器与安全 artifact route", progress:72,
+        focus:"tickets"
+      },
+      stale: {
+        name:"架构变更后过期", tone:"danger", badge:"批准修订已过期", mode:"existing",
+        current:"恢复基线 v3", target:"目标架构 v4 · 已修改", artifact:"源文件已变化", approval:"旧批准失效",
+        revision:"a81c…0e4b", sourceSha:"d902…8fb1", approvedSha:"a81c…0e4b", checks:"待重新交付",
+        next:"禁止开始新任务；进行中的 02 完成当前安全检查点后暂停，重新交付并批准架构。",
+        planLocked:true, activeCheckpoint:"02 · 当前检查点", delta:"目标架构增加了 approval record seam", progress:63,
+        focus:"approval"
+      },
+      asbuilt: {
+        name:"实际架构待复核", tone:"warning", badge:"实施完成 · 待复核", mode:"verification",
+        current:"规划架构 v4", target:"实际架构 v5", artifact:"9/9 校验通过", approval:"实际架构待批准",
+        revision:"c314…7ad0", sourceSha:"f122…9e0c", approvedSha:"c314…7ad0", checks:"9 / 9",
+        next:"复核规划与实际的 2 项差异；批准后才能将实际架构 v5 升级为长期基线。",
+        planLocked:false, activeCheckpoint:"全部实现完成", delta:"2 项已解释差异 · 0 项未解释", progress:92,
+        focus:"review"
+      }
+    };
+    const tasks = [
+      { id:"01", title:"读取并校验 Archify 三件套", affects:["架构源","校验器"], state:"待开始" },
+      { id:"02", title:"在开发流程中呈现架构设计阶段", affects:["任务视图","图形工件"], state:"等待 01" },
+      { id:"03", title:"让工单绑定批准修订与组件", affects:["流程规则","架构源"], state:"等待 01" }
+    ];
+    const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[char]);
+    const params = new URLSearchParams(location.search);
+    let variant = variants[params.get("variant")] ? params.get("variant") : "A";
+    let scenarioKey = scenarios[params.get("scenario")] ? params.get("scenario") : "greenfield";
+
+    function setQuery(nextVariant, nextScenario) {
+      variant = nextVariant || variant;
+      scenarioKey = nextScenario || scenarioKey;
+      const query = new URLSearchParams({ variant, scenario: scenarioKey });
+      history.replaceState(null, "", "?" + query.toString());
+      render();
+    }
+    function badge(s) { return '<span class="status-pill tone-' + s.tone + '">' + esc(s.badge) + '</span>'; }
+    function frame(s, label) {
+      const focus = encodeURIComponent(s.focus);
+      return '<div class="frame-shell"><span class="frame-label">' + esc(label || "ARCHIFY · 真实交互工件") + '</span><a class="frame-open" href="/artifact.html?theme=light#focus=' + focus + '" target="_blank" rel="noopener noreferrer">展开大图 ↗</a><iframe title="Archify 架构图概览" sandbox="allow-scripts" referrerpolicy="no-referrer" src="/artifact.html?embed=1&theme=light#focus=' + focus + '"></iframe><span class="frame-overview">窄面板只显示架构概览；节点阅读请展开大图。</span></div>';
+    }
+    function action(s) {
+      const tone = s.tone === "danger" ? " danger" : s.tone === "warning" ? " warning" : "";
+      return '<div class="next-action' + tone + '"><span class="phase-icon ' + (s.tone === "ok" ? "ok" : s.tone === "danger" || s.tone === "warning" ? "warn" : "") + '">→</span><div><strong>下一步</strong><br>' + esc(s.next) + '</div></div>';
+    }
+    function facts(s) {
+      const values = [["当前架构",s.current],["目标／实际",s.target],["交付校验",s.checks],["批准修订",s.revision]];
+      return '<div class="facts">' + values.map((item) => '<div class="fact"><span>' + esc(item[0]) + '</span><strong title="' + esc(item[1]) + '">' + esc(item[1]) + '</strong></div>').join("") + '</div>';
+    }
+    function taskCards(s, compact) {
+      return '<ul class="task-list' + (s.planLocked ? " locked-plan" : "") + '">' + tasks.map((task) => {
+        const state = s.planLocked ? (scenarioKey === "stale" && task.id === "02" ? "安全检查点" : "架构门禁锁定") : task.state;
+        return '<li class="task"><span class="task-no">' + task.id + '</span><div><h4>' + esc(task.title) + '</h4><p>影响：' + task.affects.map(esc).join(" · ") + '</p></div><span class="chip">' + esc(state) + '</span></li>';
+      }).join("") + '</ul>' + (s.planLocked && !compact ? '<p class="lock-copy"><strong>任务计划不可执行：</strong>批准修订与当前架构不匹配或尚未批准。</p>' : "");
+    }
+    function scenarioOptions() {
+      return Object.entries(scenarios).map(([key, value]) => '<option value="' + key + '"' + (key === scenarioKey ? " selected" : "") + '>' + esc(value.name) + '</option>').join("");
+    }
+    function shell(content, s) {
+      return '<div class="app"><header class="topbar"><div class="title-wrap"><div class="eyebrow"><span class="prototype-dot"></span>架构门禁原型</div><h1>开发任务视图</h1></div><select id="scenario" class="scenario-select" aria-label="切换架构状态场景">' + scenarioOptions() + '</select></header><main class="page"><div class="intro"><div><h2>' + esc(variants[variant]) + '</h2><p>问题：架构设计怎样在任务拆分之前成为可理解、可追溯、不会冒充实施结果的门禁？</p></div>' + badge(s) + '</div>' + content + '<details class="debug"><summary>查看本方案当前完整状态</summary><pre>' + esc(JSON.stringify({ "方案":variant, "场景":scenarioKey, "需要架构设计":true, "当前版本摘要":s.sourceSha, "已批准版本摘要":s.approvedSha, "任务计划已锁定":s.planLocked, "当前安全检查点":s.activeCheckpoint }, null, 2)) + '</pre></details></main></div>';
+    }
+    function variantA(s) {
+      const arch = '<div class="architecture-expanded">' + action(s) + '<div class="compact-grid"><div class="compact-stat"><span>设计类型</span><strong>' + (s.mode === "greenfield" ? "绿地规划" : s.mode === "verification" ? "实际架构复核" : "既有系统变更") + '</strong></div><div class="compact-stat"><span>架构变化</span><strong>' + esc(s.delta) + '</strong></div><div class="compact-stat"><span>代码证据</span><strong>' + (s.mode === "greenfield" ? "暂无代码" : "恢复基线已验证") + '</strong></div></div>' + frame(s) + '</div>';
+      const phases = [
+        ["✓","ok","规格与边界","已完成","1 份本地规格"],
+        ["2",s.tone === "ok" ? "ok" : s.tone === "danger" || s.tone === "warning" ? "warn" : "","架构设计",s.badge,s.target],
+        ["3",s.planLocked ? "locked" : "ok","任务计划",s.planLocked ? "等待架构门禁" : "可拆分","3 项候选任务"],
+        ["4",s.planLocked ? "locked" : "","实施明细",scenarioKey === "asbuilt" ? "已完成" : "等待执行",s.activeCheckpoint],
+        ["5","locked","验证与交付",scenarioKey === "asbuilt" ? "实际架构待复核" : "等待实施","不冒充交付完成"]
+      ];
+      let rows = phases.map((p, index) => '<div class="phase-row' + (index === 1 ? " active" : "") + '"><span class="phase-icon ' + p[1] + '">' + p[0] + '</span><div><h3>' + esc(p[2]) + '</h3><p>' + esc(p[4]) + '</p></div><span class="chip">' + esc(p[3]) + '</span></div>' + (index === 1 ? arch : "")).join("");
+      rows += '<div class="architecture-expanded">' + taskCards(s, true) + '</div>';
+      return shell('<section class="variant-a"><div class="phase-list">' + rows + '</div></section>', s);
+    }
+    function variantB(s) {
+      const rail = ["规格与边界","架构设计","任务计划","实施明细","验证与交付"].map((label,index) => '<div class="rail-step ' + (index === 0 ? "done" : "") + (index === 1 ? " active" : "") + '"><span class="bullet">' + (index === 0 ? "✓" : index + 1) + '</span>' + label + '</div>').join("");
+      const review = '<aside class="review-pane"><h3>架构审查</h3>' + badge(s) + '<div class="gate-line"><span style="width:' + s.progress + '%"></span></div><div class="review-section"><h4>修订绑定</h4><div class="review-row"><span>当前版本</span><strong>' + esc(s.sourceSha) + '</strong></div><div class="review-row"><span>已批准版本</span><strong>' + esc(s.approvedSha) + '</strong></div><div class="review-row"><span>校验</span><strong>' + esc(s.checks) + '</strong></div></div><div class="review-section"><h4>影响组件</h4><div class="component-list"><span class="chip">架构源</span><span class="chip">校验器</span><span class="chip">任务视图</span><span class="chip">流程规则</span></div></div><div class="review-section"><h4>门禁结果</h4>' + action(s) + '</div></aside>';
+      const content = '<section class="variant-b"><div class="workbench"><nav class="rail"><h3>开发阶段</h3>' + rail + '</nav><div class="canvas-pane"><div class="canvas-toolbar"><h3>' + esc(s.target) + '</h3><div class="canvas-tabs"><span>当前</span><span class="active">目标</span><span>差异</span></div></div>' + frame(s,"ARCHIFY · 架构工作台") + '</div>' + review + '</div><div class="card" style="margin-top:14px;padding:14px"><div class="card-head" style="padding:0 0 12px;margin-bottom:12px"><div><h3>架构绑定任务</h3><p>系统关系不等于执行依赖；这里只显示受影响组件映射。</p></div><span class="chip">' + (s.planLocked ? "已锁定" : "可以拆分") + '</span></div>' + taskCards(s,true) + '</div></section>';
+      return shell(content,s);
+    }
+    function variantC(s) {
+      const steps = ["规格","架构","任务","实施","验证"].map((label,index) => '<div class="timeline-step ' + (index === 0 ? "done" : "") + (index === 1 ? " active" : "") + '">' + label + '</div>').join("");
+      const summary = [["当前",s.current],["目标／实际",s.target],["校验",s.checks],["批准 SHA",s.revision]].map((item) => '<div class="gate-cell"><span>' + esc(item[0]) + '</span><strong>' + esc(item[1]) + '</strong></div>').join("");
+      const trace = '<div class="card trace-card"><h3>设计到任务的可追溯性</h3><div class="trace-row"><span>目标架构</span><strong>' + esc(s.sourceSha) + '</strong></div><div class="trace-row"><span>影响组件</span><strong>4 个</strong></div><div class="trace-row"><span class="trace-arrow">架构组件 → 工单</span><strong>3 项</strong></div><div class="trace-row"><span>执行前沿</span><strong>' + (s.planLocked ? "已锁定" : "01 可开始") + '</strong></div><div style="margin-top:11px">' + action(s) + '</div></div>';
+      const content = '<section class="variant-c"><div class="gate-hero"><div class="gate-top"><div><h2>架构门禁</h2><p>先确认系统应该怎样变化，再决定开发按什么顺序发生。任务视图只投影批准状态，不在页面内批准。</p></div>' + badge(s) + '</div><div class="gate-summary">' + summary + '</div></div><div class="timeline">' + steps + '</div><div class="review-grid">' + frame(s,"ARCHIFY · 设计证据") + trace + '</div><div class="card plan-strip"><div class="plan-strip-head"><div><h3>任务计划</h3><p style="margin:4px 0 0;color:var(--tertiary);font-size:10px">每张工单绑定批准修订和稳定组件 ID。</p></div><span class="chip">' + (s.planLocked ? "等待架构" : "架构已批准") + '</span></div><div class="plan-tasks">' + tasks.map((task) => '<div class="task"><span class="task-no">' + task.id + '</span><div><h4>' + esc(task.title) + '</h4><p>' + task.affects.join(" · ") + '</p></div></div>').join("") + '</div></div></section>';
+      return shell(content,s);
+    }
+    function render() {
+      const s = scenarios[scenarioKey];
+      document.querySelector("#app").innerHTML = variant === "A" ? variantA(s) : variant === "B" ? variantB(s) : variantC(s);
+      document.querySelector("#variant-name").textContent = variants[variant];
+      document.querySelector("#scenario").addEventListener("change", (event) => setQuery(null,event.target.value));
+    }
+    function cycle(direction) {
+      const keys = Object.keys(variants);
+      setQuery(keys[(keys.indexOf(variant) + direction + keys.length) % keys.length]);
+    }
+    document.querySelector("#previous").addEventListener("click", () => cycle(-1));
+    document.querySelector("#next").addEventListener("click", () => cycle(1));
+    document.addEventListener("keydown", (event) => {
+      if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+      if (event.key === "ArrowLeft") cycle(-1);
+      if (event.key === "ArrowRight") cycle(1);
+    });
+    render();
+  </script>
+</body>
+</html>

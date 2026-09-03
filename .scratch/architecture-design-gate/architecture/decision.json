@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "required": true,
+  "mode": "greenfield",
+  "reason": "新增架构事实、批准门禁、安全工件路由和 SDD 架构阶段，改变任务视图的数据契约与交互结构。",
+  "approvedSpecificationSha256": "22a77a88c144e7bfc649f20b6b5c2a13c70c2eeea6d3fd584895a8f96ef8f5f0",
+  "approvedArtifactSha256": "a0313c21fcbf7e0fd3e259de276085efd73f0c57936981922862f730dda25fd4"
+}

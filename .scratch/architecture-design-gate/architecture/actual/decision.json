@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "recordType": "actual-review",
+  "mode": "verification",
+  "sourceFeature": "architecture-design-gate",
+  "reason": "五张票据实施完成后复核：实际高层组件、边界与规划架构一致；用户已确认按此版本保存。",
+  "plannedSpecificationSha256": "22a77a88c144e7bfc649f20b6b5c2a13c70c2eeea6d3fd584895a8f96ef8f5f0",
+  "approvedSpecificationSha256": "22a77a88c144e7bfc649f20b6b5c2a13c70c2eeea6d3fd584895a8f96ef8f5f0",
+  "approvedArtifactSha256": "a0313c21fcbf7e0fd3e259de276085efd73f0c57936981922862f730dda25fd4",
+  "approvedReviewSha256": "a0a7b8b9ecae4fa3a6bdb7a9bfb155ff5c63b5b33807b8a6775fc813c5fc40ab",
+  "differences": []
+}

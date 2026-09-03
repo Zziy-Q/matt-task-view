@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "架构驱动的开发流程",
+    "locale": "zh-CN",
+    "subtitle": "从需求规格到架构基线，全程版本可追溯",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "planning",
+        "label": "规划与批准",
+        "focus": ["impact", "planned", "validation", "approval"],
+        "note": "先确认系统应该怎样变化，再批准精确架构版本。"
+      },
+      {
+        "id": "execution",
+        "label": "任务开发",
+        "focus": ["tickets", "implementation"],
+        "note": "只把已批准架构拆成任务，并按依赖前沿执行。"
+      },
+      {
+        "id": "asbuilt",
+        "label": "实际架构复核",
+        "focus": ["actual", "review", "baseline"],
+        "note": "实现完成后对比规划与实际，批准后升级长期基线。"
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "任务与界面" },
+        "backend": { "label": "执行服务" },
+        "cloud": { "label": "长期资产" },
+        "security": { "label": "门禁与复核" },
+        "messagebus": { "label": "架构版本" },
+        "external": { "label": "需求输入" }
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "spec",
+      "type": "external",
+      "label": "需求规格",
+      "sublabel": "目标 · 范围 · 验收",
+      "pos": [30, 260],
+      "size": [150, 68]
+    },
+    {
+      "id": "current",
+      "type": "cloud",
+      "label": "当前架构基线",
+      "sublabel": "新项目可以为空",
+      "pos": [210, 100],
+      "size": [150, 68],
+      "tag": "可为空"
+    },
+    {
+      "id": "impact",
+      "type": "security",
+      "label": "架构影响判断",
+      "sublabel": "组件 · 接口 · 数据流 · 部署",
+      "pos": [210, 260],
+      "size": [160, 68]
+    },
+    {
+      "id": "planned",
+      "type": "messagebus",
+      "label": "规划架构",
+      "sublabel": "目标版本 v0 / vN",
+      "pos": [400, 260],
+      "size": [150, 68],
+      "tag": "结构化事实源"
+    },
+    {
+      "id": "validation",
+      "type": "backend",
+      "label": "校验与交付",
+      "sublabel": "架构源 · 中文图 · 回执",
+      "pos": [580, 260],
+      "size": [160, 68]
+    },
+    {
+      "id": "approval",
+      "type": "security",
+      "label": "人工批准",
+      "sublabel": "确认内容与精确版本摘要",
+      "pos": [770, 260],
+      "size": [150, 68],
+      "tag": "门禁"
+    },
+    {
+      "id": "tickets",
+      "type": "frontend",
+      "label": "任务拆分",
+      "sublabel": "映射组件与执行依赖",
+      "pos": [950, 260],
+      "size": [160, 68]
+    },
+    {
+      "id": "implementation",
+      "type": "backend",
+      "label": "开发实施",
+      "sublabel": "按依赖前沿逐步执行",
+      "pos": [1140, 260],
+      "size": [160, 68]
+    },
+    {
+      "id": "actual",
+      "type": "messagebus",
+      "label": "实际架构",
+      "sublabel": "根据实现结果生成",
+      "pos": [1140, 450],
+      "size": [160, 68]
+    },
+    {
+      "id": "review",
+      "type": "security",
+      "label": "架构差异复核",
+      "sublabel": "对比规划与实际",
+      "pos": [950, 450],
+      "size": [160, 68]
+    },
+    {
+      "id": "baseline",
+      "type": "cloud",
+      "label": "长期架构基线",
+      "sublabel": "批准后供下一任务使用",
+      "pos": [760, 450],
+      "size": [160, 68],
+      "tag": "长期事实"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "规划与架构设计",
+      "wraps": ["current", "impact", "planned", "validation"]
+    },
+    {
+      "kind": "security-group",
+      "label": "人工门禁",
+      "wraps": ["approval"]
+    },
+    {
+      "kind": "region",
+      "label": "任务开发",
+      "wraps": ["tickets", "implementation"]
+    },
+    {
+      "kind": "region",
+      "label": "复核与沉淀",
+      "wraps": ["actual", "review", "baseline"]
+    }
+  ],
+  "connections": [
+    {
+      "from": "spec",
+      "to": "impact",
+      "label": "识别变化",
+      "variant": "emphasis",
+      "labelAt": [195, 342]
+    },
+    {
+      "from": "current",
+      "to": "impact",
+      "label": "提供现状",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "impact",
+      "to": "planned",
+      "label": "需要设计",
+      "variant": "emphasis",
+      "labelAt": [385, 246]
+    },
+    {
+      "from": "planned",
+      "to": "validation",
+      "label": "校验并生成图",
+      "variant": "emphasis",
+      "labelAt": [565, 342]
+    },
+    {
+      "from": "validation",
+      "to": "approval",
+      "label": "提交版本",
+      "variant": "security",
+      "labelAt": [755, 342]
+    },
+    {
+      "from": "approval",
+      "to": "tickets",
+      "label": "批准后解锁",
+      "variant": "emphasis",
+      "labelAt": [935, 342]
+    },
+    {
+      "from": "tickets",
+      "to": "implementation",
+      "label": "按依赖执行",
+      "variant": "emphasis",
+      "labelAt": [1125, 246]
+    },
+    {
+      "from": "implementation",
+      "to": "actual",
+      "label": "完成后生成",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [1220, 390]
+    },
+    {
+      "from": "actual",
+      "to": "review",
+      "label": "对比规划版本",
+      "variant": "security",
+      "labelAt": [1125, 532]
+    },
+    {
+      "from": "review",
+      "to": "baseline",
+      "label": "批准并提升",
+      "variant": "emphasis",
+      "labelAt": [935, 436]
+    },
+    {
+      "from": "impact",
+      "to": "tickets",
+      "label": "无架构影响：记录理由后跳过",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "route": "orthogonal-h",
+      "via": [[290, 380], [1030, 380]],
+      "labelAt": [660, 372]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "新任务如何开始",
+      "items": [
+        "新项目没有当前架构是正常状态，不生成虚假基线",
+        "从需求规格创建一张 5–12 个核心组件的规划架构 v0",
+        "用户批准精确版本后，任务拆分才会解锁"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "架构门禁",
+      "items": [
+        "校验通过不等于人工批准",
+        "架构变化后旧批准立即过期，并暂停开始新任务",
+        "没有架构影响的简单改动可以记录理由后跳过"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "完成与沉淀",
+      "items": [
+        "实现完成后生成实际架构，而不是继续把规划图当作事实",
+        "复核规划与实际差异，解释每一项偏离",
+        "批准后的实际架构升级为下一次开发的长期基线"
+      ]
+    }
+  ]
+}

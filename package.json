@@ -1,0 +1,13 @@
+{
+  "name": "matt-task-view",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "matt-task-view": "./src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test",
+    "prototype:architecture": "node prototype/architecture-card/serve.mjs"
+  }
+}

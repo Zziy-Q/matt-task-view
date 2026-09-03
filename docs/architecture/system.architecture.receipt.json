@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "./.scratch/architecture-design-gate/architecture/actual/system.architecture.json",
+  "output": "./.scratch/architecture-design-gate/architecture/actual/system.architecture.html",
+  "specification": {
+    "sha256": "22a77a88c144e7bfc649f20b6b5c2a13c70c2eeea6d3fd584895a8f96ef8f5f0",
+    "bytes": 6901
+  },
+  "artifact": {
+    "sha256": "a0313c21fcbf7e0fd3e259de276085efd73f0c57936981922862f730dda25fd4",
+    "bytes": 721728
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
