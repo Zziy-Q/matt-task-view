@@ -2,9 +2,9 @@
 
 本地 Markdown 票据的只读开发进度视图：读取 `.scratch/<feature>/issues/`，在 `127.0.0.1` 提供实时依赖图、进度、开发前沿与任务详情。
 
-适合在 Codex 右侧面板或普通浏览器中跟踪本地开发。规格、票据和架构文件保存在项目内，视图负责读取与解释这些事实。运行时使用 Node.js 标准库和原生 HTML/CSS/JavaScript，无第三方运行依赖、数据库或前端构建步骤。
+适合在 Codex 右侧面板或普通浏览器中跟踪本地开发。规格、票据和架构文件保存在项目内，视图负责读取与解释这些事实。主服务使用 Node.js 标准库和原生 HTML/CSS/JavaScript；任务图由仓库内固定版本的 Archify 运行时生成，无需安装依赖、数据库或前端构建步骤。
 
-**本地 Markdown · 实时依赖图 · 架构版本追溯 · 中文界面 · 零运行依赖**
+**本地 Markdown · Archify 实时依赖图 · 架构版本追溯 · 中文界面 · 开箱即用**
 
 ![开发任务视图：进度总览与 SDD 五阶段](docs/images/界面总览.png)
 
@@ -26,6 +26,22 @@ matt-task-view serve --port 0
 
 ## 界面展示
 
+### 每个功能一张横向依赖图
+
+两个功能分别展示，保留各自票据编号；每张图独立收起、展开。服务把当前 `TaskGraph` 转成 Archify workflow v2，侧栏显示适合快速阅读的小型全景，点击“展开大图”可使用完整的查找、路径、缩放和语义图例。切换功能或数据自动刷新时保留当前页面的折叠选择。
+
+| 两张独立横向图 | 独立收起、展开 |
+| --- | --- |
+| ![侧栏内的横向依赖图](docs/images/按功能拆分依赖图.png) | ![第一张收起，第二张展开](docs/images/独立收起展开.png) |
+
+以上是 Codex 侧栏内的网页截图，不含 Codex 应用外框。
+
+任务列表也按功能分组，组内编号从 `01` 开始；全局状态标签继续统计全部任务，各组可独立收起。
+
+| Archify 展开大图 | 按功能分组的任务列表 |
+| --- | --- |
+| ![Archify 完整任务图](docs/images/Archify展开大图.png) | ![任务列表按功能分组](docs/images/任务列表按功能分组.png) |
+
 ### 从进度进入具体任务
 
 顶部先展示当前进度与下一步，五个可折叠阶段保留规格、计划和实施上下文。通过依赖图定位任务后，可展开验收项、源文件位置、批准修订与受影响组件。
@@ -46,9 +62,9 @@ matt-task-view serve --port 0
 | --- | --- |
 | 进度概览 | 展示总任务、已完成、进行中、待开始和阻塞数量；完成率按 `done / total` 计算 |
 | SDD 流程 | 五个阶段：规格与边界、架构设计、任务计划、实施明细、验证与交付；根据事实给出下一步提示 |
-| 依赖流程图 | 按任务依赖展示关系，点击或键盘选择节点可定位并展开任务详情 |
+| 依赖流程图 | 按功能生成独立 Archify 横向图，可分别收起；侧栏显示全景并可展开完整交互图，图下任务索引可定位详情 |
 | 可执行前沿 | 只列出依赖已完成、架构门禁和绑定有效的 `ready` 任务；计划诊断失败时停止给出前沿 |
-| 任务筛选 | 按功能目录与任务状态筛选，查看阻塞原因、阶段和验收项 |
+| 任务筛选 | 保留全局状态筛选，并按功能分成可独立收起的任务组，避免不同功能的 `01、02` 混读 |
 | 验收三态 | `[ ]` 尚未实现、`[~]` 已实现未验收、`[x]` 已验收；任务状态和验收项分别展示 |
 | 计划诊断 | 检查缺失字段、非法状态、重复 ID、缺失依赖、自依赖和循环依赖，展示源文件位置 |
 | 架构追溯 | 将 `architecture_revision`、`affects` 绑定到批准修订及稳定组件 ID，提供有效组件定位链接 |
@@ -141,6 +157,8 @@ flowchart LR
     Files -->|.scratch 文件变化| Watch[文件监听]
     Watch -->|SSE refresh| Browser
     HTTP -->|受限 HTML| Frame[沙箱架构预览]
+    Graph --> Workflow[Archify workflow v2]
+    Workflow -->|校验后 HTML| Frame
 ```
 
 本项目**没有账号登录、OAuth、JWT、Session 或 API Token**，也不读取 GitHub 凭据。`127.0.0.1` 限制、只读路由、产物完整性校验与浏览器沙箱构成当前访问边界。SHA-256 是一致性检查，不是登录凭证或用户身份签名。详见 [认证与请求流程](docs/认证与请求流程.md)，包含代码定位、各接口行为及凭据处理说明。
@@ -151,18 +169,20 @@ flowchart LR
 npm test
 ```
 
-使用 Node.js 内置测试运行器；本次发布在 Node.js `v24.13.1` 下通过 96 项测试，覆盖任务图、架构门禁、生命周期、渲染、HTTP 路由、路径拒绝和 SSE。
+使用 Node.js 内置测试运行器；本次发布在 Node.js `v24.13.1` 下通过 103 项测试，覆盖任务图、Archify 适配与交付、架构门禁、生命周期、渲染、HTTP 路由、路径拒绝和 SSE。
 
 | 路径 | 职责 |
 | --- | --- |
 | `src/cli.mjs` | 命令参数、读取根目录、服务启动和退出 |
-| `src/server.mjs` | 只读 HTTP、静态资源、架构路由、文件监听和 SSE |
+| `src/server.mjs` | 只读 HTTP、静态资源、架构与工作流路由、文件监听和 SSE |
+| `src/workflow.mjs` | 将当前功能的任务 DAG 转为 Archify workflow v2，并验证交付回执 |
 | `src/task-graph.mjs` | 票据解析、依赖校验、开发前沿及架构校验 |
 | `src/public/` | 原生浏览器界面、响应式样式与交互 |
 | `test/` | 无第三方框架的自动测试 |
 | `skills/`、`docs/agents/` | Matt companion、票据契约和本地开发约定 |
 | `.scratch/`、`docs/architecture/` | 本项目开发记录及架构事实来源 |
 | `prototype/architecture-card/` | 历史布局探索；运行 `npm run prototype:architecture`，与正式任务服务分离 |
+| `vendor/archify/` | 固定提交的 MIT Archify 运行文件、许可证与来源说明 |
 
 ## 当前边界
 
@@ -176,4 +196,5 @@ npm test
 
 ## 参考
 
+- [Archify](https://github.com/tt-a1i/archify)——任务依赖图固定使用 `06dd052602dd9a369e4d034e24faef0917b5a60c` 的 workflow v2 运行文件，来源和许可证随仓库保留。
 - [GitHub：将本地代码加入 GitHub](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github)——本仓库采用已有本地代码的首次推送流程。

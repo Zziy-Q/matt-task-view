@@ -115,6 +115,24 @@ test("local server returns a verified feature architecture with isolated browser
   assert.match(page.headers.get("content-security-policy"), /frame-src 'self'/);
 });
 
+test("local server delivers the current feature workflow through pinned Archify", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "matt-task-view-"));
+  await createTicket(root);
+  const app = createTaskViewServer(root);
+  const { url } = await app.listen();
+  t.after(() => app.close());
+
+  const response = await fetch(`${url}workflow/demo/artifact.html?embed=1&theme=light`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-security-policy"), "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts");
+  const html = await response.text();
+  assert.match(html, /Matt Task View|demo/);
+  assert.match(html, /01/);
+  assert.equal((await fetch(`${url}workflow/unknown/artifact.html`)).status, 404);
+  assert.notEqual((await fetch(`${url}workflow/safe%2Fother/artifact.html`)).status, 200);
+});
+
 test("architecture route rejects encoded path attacks and feature directories that escape through a symlink", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "matt-task-view-"));
   await createArchitecture(root, "safe");

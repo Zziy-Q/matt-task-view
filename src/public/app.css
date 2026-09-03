@@ -179,28 +179,24 @@ button, select { font: inherit; }
 .architecture-skip { color: var(--text-secondary); background: var(--surface-subtle); border: 1px solid var(--line); }
 .architecture-card.blocked[open] { box-shadow: inset 3px 0 0 var(--warning); }
 
-/* Whiteboard graph: pale blue drafting field, not a grey card. */
-.graph-wrap { overflow-x: auto; padding: 4px 0 2px; }
-.whiteboard { padding: 14px 0 8px; background-color: #fbfdff; background-image: radial-gradient(circle, #dce9fa .75px, transparent .8px); background-position: 0 0; background-size: 13px 13px; border: 1px solid #e1eaf6; border-radius: var(--radius); }
-.graph { display: block; width: 100%; min-width: 0; height: auto; }
-.graph text { font-family: inherit; }
-.edge { fill: none; stroke: #9db6dc; stroke-width: 1.45; marker-end: url(#arrow); }
-.graph defs path { fill: #8ba6cb; }
-.node { fill: #fff; stroke: #c8d6e9; stroke-width: 1.25; rx: 8; }
-.whiteboard .node { filter: drop-shadow(0 2px 3px rgb(35 68 112 / 5%)); }
-.node.done { fill: #fcfffd; stroke: #afd1bb; }
-.node.in_progress { fill: var(--primary-soft); stroke: var(--primary); stroke-width: 1.8; }
-.node.blocked { fill: #fffaf1; stroke: #edbc60; }
-.node-button { cursor: pointer; }
-.node-button:hover .node, .node-button:focus-visible .node { stroke: var(--primary); stroke-width: 2; }
-.node-id { fill: var(--primary); font-size: 13px; font-weight: 650; }
-.node-title { fill: var(--text); font-size: 13px; font-weight: 620; }
-.node-state { font-size: 11px; font-weight: 600; }
-.phase-label { fill: var(--text-tertiary); font-size: 11px; }
-.board-stage rect { fill: #fff; stroke: #a8bfdc; stroke-width: 1.35; }
-.board-stage text { fill: var(--text-secondary); font-size: 13px; font-weight: 620; }
-.board-stage.verification rect { fill: var(--primary-soft); stroke: var(--primary); stroke-dasharray: 4 3; }
-.board-stage.verification text { fill: var(--primary); }
+/* Feature diagrams and task groups share native, keyboard-accessible disclosure controls. */
+.feature-graphs { display: grid; gap: 16px; }
+.feature-graph { min-width: 0; }
+.feature-graph > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; cursor: pointer; }
+.feature-graph > summary::-webkit-details-marker { display: none; }
+.feature-graph > summary strong { font-size: 14px; overflow-wrap: anywhere; }
+.feature-graph > summary small { display: block; margin-top: 5px; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.graph-toggle { flex-shrink: 0; font-size: 12px; color: var(--primary); }
+.feature-graph[open] .when-closed, .feature-graph:not([open]) .when-open { display: none; }
+.feature-graph > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.graph-external { margin-top: 10px; font-size: 12px; overflow-wrap: anywhere; }
+.graph-external ul { margin: 5px 0 0; padding-left: 18px; }
+/* Archify owns diagram layout; this shell only sizes the embedded overview. */
+.workflow-preview { position: relative; height: 160px; border: 1px solid #dce7f6; border-radius: 9px; overflow: hidden; background: #fbfdff; }
+.workflow-preview iframe { display: block; width: 100%; height: 100%; border: 0; }
+.workflow-tickets { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+.workflow-tickets button { border: 1px solid var(--line); border-radius: 5px; padding: 4px 7px; background: #fff; color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+.workflow-tickets button:hover, .workflow-tickets button:focus-visible { border-color: var(--primary); color: var(--primary); }
 .frontier { margin: 12px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
 .frontier strong { color: var(--text); }
 
@@ -212,8 +208,16 @@ button, select { font: inherit; }
 .task-tab.active { font-weight: 620; }
 .task-tab.active::after { position: absolute; right:8px; bottom: -1px; left:8px; height: 2px; background: var(--primary); border-radius: 2px 2px 0 0; content: ""; }
 .task-list { padding: 0; margin: 0; list-style: none; }
-.task-list li { border-bottom: 1px solid var(--line); }
-.task-list details { padding: 0 var(--gutter); }
+.task-list > .task-feature { border-bottom: 1px solid var(--line); }
+.task-feature-group { padding: 0; }
+.task-feature-summary { display: flex !important; min-height: 0 !important; justify-content: space-between; padding: 13px var(--gutter); background: var(--surface-subtle); }
+.task-feature-summary strong { color: var(--text); font-size: 13px; }
+.task-feature-summary small { display: block; margin-top: 3px; color: var(--text-tertiary); font-size: 10px; }
+.task-feature-group[open] .when-closed, .task-feature-group:not([open]) .when-open { display: none; }
+.task-feature-list { padding: 0; margin: 0; list-style: none; border-top: 1px solid var(--line); }
+.task-feature-list > li { border-bottom: 1px solid var(--line); }
+.task-feature-list > li:last-child { border-bottom: 0; }
+.task-feature-list details { padding: 0 var(--gutter); }
 .task-list summary { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 64px; list-style: none; cursor: pointer; transition: background-color .18s ease; }
 .task-list summary:hover { background: var(--primary-wash); }
 .check { display: grid; width: 20px; height: 20px; place-items: center; border: 1.5px solid #b8c2d0; border-radius: 50%; font-size: 12px; font-weight: 700; }
@@ -274,7 +278,6 @@ button, select { font: inherit; }
   .architecture-revisions div { grid-template-columns: 1fr; gap: 0; }
   .architecture-binding-ticket { align-items: flex-start; flex-direction: column; gap: 3px; }
   .task-architecture > div { grid-template-columns: 1fr; gap: 3px; }
-  .graph { width: 460px; min-width: 460px; }
   .task-tab { padding-right: 7px; padding-left: 7px; }
 }
 

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 
 import { buildTaskGraph, readVerifiedArchitectureArtifact } from "./task-graph.mjs";
+import { deliverWorkflow, workflowSpecification } from "./workflow.mjs";
 
 const pageCsp = "default-src 'self'; connect-src 'self'; frame-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'";
 const artifactCsp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts";
@@ -59,6 +60,7 @@ async function architectureFiles(root, feature) {
 
 export function createTaskViewServer(root) {
   const clients = new Set();
+  const workflows = new Map();
   let fileWatcher;
   let refreshTimer;
 
@@ -79,6 +81,33 @@ export function createTaskViewServer(root) {
     }
 
     const architectureRoute = url.pathname.match(/^\/architecture\/([^/]+)\/artifact\.html$/);
+    const workflowRoute = url.pathname.match(/^\/workflow\/([^/]+)\/artifact\.html$/);
+    if (workflowRoute) {
+      try {
+        const feature = decodeURIComponent(workflowRoute[1]);
+        if (!feature || feature === "." || feature === ".." || /[\\/\0]/u.test(feature)) throw new Error("Invalid feature");
+        const graph = await buildTaskGraph(root);
+        if (!graph.features.includes(feature)) {
+          respond(response, 404, unavailableArtifactHeaders, "Workflow unavailable");
+          return;
+        }
+        const specification = workflowSpecification(graph, feature);
+        const revision = JSON.stringify(specification);
+        let cached = workflows.get(feature);
+        if (cached?.revision !== revision) {
+          cached = { revision, html: deliverWorkflow(specification) };
+          workflows.set(feature, cached);
+        }
+        const html = await cached.html.catch((error) => {
+          if (workflows.get(feature) === cached) workflows.delete(feature);
+          throw error;
+        });
+        respond(response, 200, artifactHeaders, html);
+      } catch {
+        respond(response, 422, unavailableArtifactHeaders, "无法生成当前依赖图，请查看任务列表与计划诊断。");
+      }
+      return;
+    }
     if (architectureRoute) {
       try {
         const feature = decodeURIComponent(architectureRoute[1]);

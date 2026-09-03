@@ -15,6 +15,66 @@ async function renderer() {
   return (expression) => runInContext(expression, context);
 }
 
+test("dependency diagrams use separate Archify views and retain external dependencies", async () => {
+  const render = await renderer();
+  const tasks = [
+    { id: "alpha/01", localId: "01", feature: "alpha", title: "架构任务", phase: "实现", status: "done", dependsOn: [] },
+    { id: "beta/01", localId: "01", feature: "beta", title: "视图任务", phase: "实现", status: "ready", dependsOn: ["alpha/01"] },
+  ];
+  const graph = { tasks, specs: [{ feature: "alpha", title: "架构功能" }], edges: [{ from: "alpha/01", to: "beta/01" }] };
+  const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
+  assert.equal((html.match(/<iframe /g) || []).length, 2);
+  assert.match(html, /架构功能/);
+  assert.match(html, /<strong>beta<\/strong>/);
+  assert.match(html, /src="\/workflow\/alpha\/artifact\.html\?embed=1&theme=light"/);
+  assert.match(html, /src="\/workflow\/beta\/artifact\.html\?embed=1&theme=light"/);
+  assert.match(html, /data-task="alpha\/01" title="架构任务"/);
+  assert.match(html, /data-task="beta\/01" title="视图任务"/);
+  assert.match(html, /跨功能依赖/);
+  assert.match(html, /beta\/01 ← alpha\/01/);
+  const filtered = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify([tasks[1]])})`);
+  assert.equal((filtered.match(/<iframe /g) || []).length, 1);
+  assert.match(filtered, /beta\/01 ← alpha\/01/);
+  assert.equal(render(`renderGraph(${JSON.stringify(graph)}, [])`), "");
+  render('collapsedGraphFeatures.add("alpha")');
+  const collapsed = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
+  assert.match(collapsed, /class="feature-graph" data-feature="alpha"/);
+  assert.match(collapsed, /class="feature-graph" open data-feature="beta"/);
+});
+
+test("feature diagrams expand independently into the isolated Archify artifact", async () => {
+  const render = await renderer();
+  const tasks = [
+    { id: "demo/01", localId: "01", feature: "demo", title: "第一步", phase: "实现", status: "done", dependsOn: [] },
+    { id: "demo/02", localId: "02", feature: "demo", title: "第二步", phase: "实现", status: "ready", dependsOn: ["demo/01"] },
+  ];
+  const graph = { tasks, specs: [], edges: [{ from: "demo/01", to: "demo/02" }] };
+  const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
+  assert.match(html, /<details class="feature-graph" open data-feature="demo"><summary>/);
+  assert.match(html, /收起/);
+  assert.match(html, /展开/);
+  assert.match(html, /href="\/workflow\/demo\/artifact\.html\?theme=light"/);
+  assert.match(html, /sandbox="allow-scripts"/);
+  assert.match(html, /referrerpolicy="no-referrer"/);
+  assert.match(html, /ARCHIFY · 任务依赖/);
+});
+
+test("task list separates repeated local numbers into collapsible feature groups", async () => {
+  const render = await renderer();
+  const task = (feature, title) => ({ id: `${feature}/01`, localId: "01", feature, title, phase: "实现", status: "done", path: `/repo/.scratch/${feature}/issues/01.md`, blockedReason: "", acceptanceCriteria: [] });
+  const tasks = [task("alpha", "架构任务"), task("beta", "视图任务")];
+  const graph = { specs: [{ feature: "alpha", title: "架构功能" }] };
+  const html = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
+  assert.equal((html.match(/class="task-feature-group" open/g) || []).length, 2);
+  assert.match(html, /架构功能/);
+  assert.match(html, /<strong>beta<\/strong>/);
+  assert.equal((html.match(/<span class="task-id">01<\/span>/g) || []).length, 2);
+  render('collapsedTaskFeatures.add("alpha")');
+  const collapsed = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
+  assert.match(collapsed, /class="task-feature-group" data-feature="alpha"/);
+  assert.match(collapsed, /class="task-feature-group" open data-feature="beta"/);
+});
+
 test("spec view renders every local section without empty hard-coded fields", async () => {
   const render = await renderer();
   const specs = [{
