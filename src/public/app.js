@@ -294,6 +294,18 @@ function architectureReviewContent(architecture) {
   return `<section class="architecture-section"><h4>实际架构复核</h4><dl class="architecture-compact-grid"><div><dt>实现完成</dt><dd>${yesNo(architecture.implementationComplete)}</dd></div><div><dt>交付核验</dt><dd>${yesNo(architecture.deliveryVerified)}</dd></div><div><dt>工具校验</dt><dd>${yesNo(architecture.toolValidationPassed)}</dd></div><div><dt>用户批准</dt><dd>${yesNo(architecture.userApproved)}</dd></div></dl><p>${escapeHtml(architecture.actual.reason || "尚未记录总体复核说明")}</p>${differences}${baseline}</section>`;
 }
 
+function architecturePreview(architecture) {
+  const route = `/architecture/${encodeURIComponent(architecture.feature)}/artifact.html`;
+  const staleNotice = architecture.status === "source_changed"
+    ? '<p class="architecture-warning"><strong>最后可信交付图：</strong>当前架构源已经变化，下面的图只代表回执仍完整的上一版。</p>'
+    : "";
+  return architecture.status === "not_required"
+    ? '<p class="architecture-skip">已记录无架构影响理由，本次不需要生成架构展示工件。</p>'
+    : architecture.artifactDisplayable
+    ? `${staleNotice}<div class="architecture-frame-shell"><span class="architecture-frame-label">ARCHIFY · 架构概览</span><a class="architecture-frame-open" href="${escapeHtml(`${route}?theme=light`)}" target="_blank" rel="noopener noreferrer">展开大图 ↗</a><iframe title="Archify 架构图概览" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy" src="${escapeHtml(`${route}?embed=1&theme=light`)}"></iframe><span class="architecture-frame-overview">窄面板只显示架构概览；节点阅读请展开大图。</span></div>`
+    : '<p class="architecture-warning"><strong>架构图不可展示：</strong>缺少可信回执或展示工件校验失败。</p>';
+}
+
 function architectureContent(architectures, tasks = []) {
   if (!architectures.length) return '<p class="sdd-empty">此旧功能没有架构记录；兼容展示且不据此推断架构已批准。</p>';
   if (architectures.length > 1) {
@@ -301,7 +313,6 @@ function architectureContent(architectures, tasks = []) {
   }
 
   const architecture = architectures[0];
-  const route = `/architecture/${encodeURIComponent(architecture.feature)}/artifact.html`;
   const components = architecture.components?.length
     ? `<ul class="architecture-components">${architecture.components.map((component) => `<li><strong>${escapeHtml(component.label)}</strong><span>${escapeHtml(component.id)}</span></li>`).join("")}</ul>`
     : '<p class="sdd-empty">尚未记录受影响组件。</p>';
@@ -309,16 +320,8 @@ function architectureContent(architectures, tasks = []) {
   const componentsNotice = architecture.status === "source_changed"
     ? '<p class="architecture-warning">这些组件来自当前已修改的架构源，不属于下面的最后可信交付图；重新交付并批准前不会用于工单绑定。</p>'
     : "";
-  const staleNotice = architecture.status === "source_changed"
-    ? '<p class="architecture-warning"><strong>最后可信交付图：</strong>当前架构源已经变化，下面的图只代表回执仍完整的上一版。</p>'
-    : "";
-  const artifact = architecture.status === "not_required"
-    ? '<p class="architecture-skip">已记录无架构影响理由，本次不需要生成架构展示工件。</p>'
-    : architecture.artifactDisplayable
-    ? `${staleNotice}<div class="architecture-frame-shell"><span class="architecture-frame-label">ARCHIFY · 架构概览</span><a class="architecture-frame-open" href="${escapeHtml(`${route}?theme=light`)}" target="_blank" rel="noopener noreferrer">展开大图 ↗</a><iframe title="Archify 架构图概览" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy" src="${escapeHtml(`${route}?embed=1&theme=light`)}"></iframe><span class="architecture-frame-overview">窄面板只显示架构概览；节点阅读请展开大图。</span></div>`
-    : '<p class="architecture-warning"><strong>架构图不可展示：</strong>缺少可信回执或展示工件校验失败。</p>';
   const codeEvidence = architecture.mode === "greenfield" ? "暂无代码（规划阶段）" : "尚未记录可验证代码证据";
-  return `<div class="architecture-next-action"><span aria-hidden="true">→</span><p><strong>下一步</strong>${escapeHtml(architecture.nextStep)}</p></div><dl class="architecture-compact-grid"><div><dt>设计类型</dt><dd>${escapeHtml(architectureModeLabel(architecture.mode))}</dd></div><div><dt>架构变化</dt><dd>${escapeHtml(architecture.reason || "尚未记录")}</dd></div><div><dt>代码证据</dt><dd>${escapeHtml(codeEvidence)}</dd></div></dl><section class="architecture-section"><h4>生命周期</h4><dl class="architecture-lifecycle"><div><dt>当前架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.current))}</dd></div><div><dt>目标架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.target))}</dd></div><div><dt>实际架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.actual))}</dd></div><div><dt>长期基线</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.baseline))}</dd></div></dl></section>${artifact}${architectureReviewContent(architecture)}<section class="architecture-section"><h4>修订绑定</h4><dl class="architecture-revisions"><div><dt>当前架构摘要</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.currentSpecification))}</code></dd></div><div><dt>交付回执摘要</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.receiptSpecification))}</code></dd></div><div><dt>批准修订</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.approvedSpecification))}</code></dd></div></dl></section><section class="architecture-section"><h4>${componentsHeading}</h4>${componentsNotice}${components}</section><section class="architecture-section"><h4>绑定工单</h4>${architectureBindings(architecture, tasks)}</section>`;
+  return `<div class="architecture-next-action"><span aria-hidden="true">→</span><p><strong>下一步</strong>${escapeHtml(architecture.nextStep)}</p></div><dl class="architecture-compact-grid"><div><dt>设计类型</dt><dd>${escapeHtml(architectureModeLabel(architecture.mode))}</dd></div><div><dt>架构变化</dt><dd>${escapeHtml(architecture.reason || "尚未记录")}</dd></div><div><dt>代码证据</dt><dd>${escapeHtml(codeEvidence)}</dd></div></dl><section class="architecture-section"><h4>生命周期</h4><dl class="architecture-lifecycle"><div><dt>当前架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.current))}</dd></div><div><dt>目标架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.target))}</dd></div><div><dt>实际架构</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.actual))}</dd></div><div><dt>长期基线</dt><dd>${escapeHtml(architectureLifecycleLabel(architecture.lifecycle?.baseline))}</dd></div></dl></section>${architecturePreview(architecture)}${architectureReviewContent(architecture)}<section class="architecture-section"><h4>修订绑定</h4><dl class="architecture-revisions"><div><dt>当前架构摘要</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.currentSpecification))}</code></dd></div><div><dt>交付回执摘要</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.receiptSpecification))}</code></dd></div><div><dt>批准修订</dt><dd><code>${escapeHtml(architectureHash(architecture.hashes?.approvedSpecification))}</code></dd></div></dl></section><section class="architecture-section"><h4>${componentsHeading}</h4>${componentsNotice}${components}</section><section class="architecture-section"><h4>绑定工单</h4>${architectureBindings(architecture, tasks)}</section>`;
 }
 
 function sddCard(name, state, label, detail, content, open = false, icon = "spec", className = "") {
@@ -368,11 +371,13 @@ function featureTitle(graph, feature) {
 }
 
 function workspaceMarkup(graph) {
-  const completed = graph.features.filter((feature) => featureIsHistory(graph, feature));
-  const active = graph.features.filter((feature) => !completed.includes(feature));
+  const references = graph.specs.filter((spec) => spec.view === "architecture").map((spec) => spec.feature);
+  const features = graph.features.filter((feature) => !references.includes(feature));
+  const completed = features.filter((feature) => featureIsHistory(graph, feature));
+  const active = features.filter((feature) => !completed.includes(feature));
   const priority = (feature) => graph.tasks.some((task) => task.feature === feature && task.status === "in_progress") ? 0 : graph.tasks.some((task) => task.feature === feature && task.status === "blocked") ? 1 : 2;
   active.sort((a, b) => priority(a) - priority(b));
-  if (followCurrentFeature || !["overview", ...graph.features].includes(selectedFeature)) {
+  if (followCurrentFeature || !["overview", ...features].includes(selectedFeature)) {
     const nextFeature = active[0] || "overview";
     if (selectedFeature !== nextFeature) selectedTaskStatus = "all";
     selectedFeature = nextFeature;
@@ -388,8 +393,13 @@ function workspaceMarkup(graph) {
     const taskContent = `<section class="execution-panel"><h2 class="section-title">任务工单</h2>${taskTabs(tasks)}<ul class="task-list">${taskList(tasks, graph)}</ul>${renderGraph(graph, tasks)}</section>`;
     content = `<section class="section feature-heading"><small>${completed.includes(selectedFeature) ? "历史记录 · 工单已完成" : "当前功能"}</small><h2>${escapeHtml(featureTitle(graph, selectedFeature))}</h2><p>${escapeHtml(selectedFeature)}</p></section><section class="section progress-section">${progressPanel(summary)}</section>${graph.errors.length ? `<section class="error"><strong>计划需要修正</strong><ul>${graph.errors.map((error) => `<li>${escapeHtml(error.message)}${error.path ? `<small class="source-path">${escapeHtml(displayPath(error.path))}</small>` : ""}</li>`).join("")}</ul></section>` : ""}${sddFlow(graph, tasks, summary, taskContent)}`;
   }
+  const architectureReferences = references.map((feature) => {
+    const entry = (graph.architectures || []).find((item) => item.feature === feature);
+    const presentation = architecturePresentation(entry ? [entry] : [], []);
+    return sddCard("架构设计", presentation.state, presentation.label, "系统结构与架构图", entry ? architecturePreview(entry) : '<p class="architecture-warning">架构图尚未记录。</p>', false, "architecture", "architecture-reference");
+  }).join("");
   const history = completed.length ? `<details class="feature-history"${historyOpen ? " open" : ""}><summary>已完成 · ${completed.length} 个功能<span>查看历史记录</span></summary><p>这里收纳已完成的工单，不代表发布或验收证据已齐全。</p><ul>${completed.map((feature) => `<li><button type="button" data-feature-record="${escapeHtml(feature)}"><strong>${escapeHtml(featureTitle(graph, feature))}</strong><small>${escapeHtml(feature)} · ${graph.tasks.filter((task) => task.feature === feature).length} 项工单</small><span>查看记录 →</span></button></li>`).join("")}</ul></details>` : "";
-  return `<div class="shell">${header}${content}${history}<p class="updated">基于本地 Markdown 规格与任务图 · 自动刷新</p></div>`;
+  return `<div class="shell">${header}${architectureReferences ? `<section class="section sdd-cards">${architectureReferences}</section>` : ""}${content}${history}<p class="updated">基于本地 Markdown 规格与任务图 · 自动刷新</p></div>`;
 }
 
 function render(graph) {

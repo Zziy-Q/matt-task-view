@@ -37,6 +37,18 @@ test("completed tickets awaiting architecture review stay in current work", asyn
   assert.equal(render(`featureIsHistory(${JSON.stringify(graph)}, "review")`), false);
 });
 
+test("architecture reference is shown as a diagram and never as development tickets", async () => {
+  const render = await renderer();
+  const task = (feature) => ({ id: `${feature}/01`, localId: "01", feature, title: `${feature} ticket`, status: "in_progress", path: `/repo/.scratch/${feature}/issues/01.md`, dependsOn: [], acceptanceCriteria: [] });
+  const graph = { features: ["design", "product"], specs: [{ feature: "design", view: "architecture", title: "架构设计门禁", sections: {} }], tasks: [task("design"), task("product")], architectures: [{ feature: "design", status: "approved", workflowStatus: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准" }], errors: [], edges: [], frontier: [] };
+  const html = render(`workspaceMarkup(${JSON.stringify(graph)})`);
+  assert.match(html, /data-task="product\/01"/);
+  assert.doesNotMatch(html, /data-task="design\/01"|data-feature-record="design"|value="design"|\/workflow\/design\//);
+  assert.match(html, /href="\/architecture\/design\/artifact.html\?theme=light"/);
+  assert.doesNotMatch(html, /design ticket|架构设计门禁/);
+  assert.match(html, /进行中<\/span><strong>1<\/strong>/);
+});
+
 test("automatic feature changes reset filters and expose cross-feature plan errors", async () => {
   const render = await renderer();
   const task = (feature, status) => ({ id: `${feature}/01`, localId: "01", feature, title: feature, status, path: `/repo/.scratch/${feature}/issues/01.md`, dependsOn: [], acceptanceCriteria: [] });
