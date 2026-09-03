@@ -14,6 +14,8 @@ test("workflow adapter keeps feature tasks horizontal and exposes full task titl
   }, "demo");
 
   assert.equal(specification.diagram_type, "workflow");
+  assert.equal(specification.meta.legend.mode, "hidden");
+  assert.deepEqual([...new Set(specification.nodes.map((node) => node.type))], ["backend"]);
   assert.deepEqual(specification.nodes.map(({ col }) => col), [0, 1]);
   assert.equal(specification.edges.length, 1);
   assert.match(specification.cards[1].items.join("\n"), /01 建立任务图/);

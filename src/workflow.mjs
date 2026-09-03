@@ -79,14 +79,14 @@ export function workflowSpecification(graph, feature) {
     const phase = task.phase === "未分阶段" ? "任务" : task.phase;
     return {
       id: ids.get(task.id), lane: lanes[row].id, col: column,
-      type: /门禁/.test(phase) ? "security" : /展示|可视化/.test(phase) ? "frontend" : /闭环/.test(phase) ? "database" : "backend",
+      type: "backend",
       label: `${task.localId} ${phase}`, tag: labels[task.status], width: Math.max(160, (task.localId.length + phase.length) * 14 + 30),
     };
   });
   const external = tasks.flatMap((task) => task.dependsOn.filter((id) => !byId.has(id)).map((id) => `${task.id} ← ${id}`));
   return {
     schema_version: 2, diagram_type: "workflow",
-    meta: { title: graph.specs.find((spec) => spec.feature === feature)?.title || feature, locale: "zh-CN", quality_profile: "showcase" },
+    meta: { title: graph.specs.find((spec) => spec.feature === feature)?.title || feature, locale: "zh-CN", quality_profile: "showcase", legend: { mode: "hidden", entries: { backend: { label: "任务工单" } } } },
     lanes, nodes,
     edges: graph.edges.filter((edge) => diagramIds.has(edge.from) && diagramIds.has(edge.to)).map((edge) => ({ from: ids.get(edge.from), to: ids.get(edge.to), label: "完成后开始" })),
     cards: [

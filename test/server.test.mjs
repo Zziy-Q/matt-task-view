@@ -66,11 +66,11 @@ test("local server serves the task view and its public snapshot", async (t) => {
   assert.match(appScript.headers.get("content-type"), /javascript/);
   const script = await appScript.text();
   assert.match(script, /EventSource/);
-  assert.match(script, /SDD 开发流程/);
+  assert.match(script, /当前工作/);
   assert.match(script, /规格与边界/);
-  assert.match(script, /任务计划/);
+  assert.match(script, /任务工单/);
   assert.match(script, /验证与交付/);
-  assert.match(script, /实施明细/);
+  assert.match(script, /设计与验收依据/);
   assert.match(script, /spec\.md/);
   assert.match(script, /下一步/);
   assert.match(script, /总体进度/);
@@ -79,7 +79,7 @@ test("local server serves the task view and its public snapshot", async (t) => {
   assert.doesNotMatch(script, /执行洞察/);
   assert.doesNotMatch(script, /任务状态分布/);
   assert.doesNotMatch(script, /阶段完成情况/);
-  assert.match(script, /任务计划/);
+  assert.match(script, /任务工单/);
   assert.equal((await fetch(`${url}favicon.ico`)).status, 204);
   assert.deepEqual((await snapshot.json()).summary, {
     total: 1,
