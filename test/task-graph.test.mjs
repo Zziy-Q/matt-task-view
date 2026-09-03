@@ -20,18 +20,6 @@ function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-test("architecture view marker preserves original tickets and dependency validation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "matt-architecture-view-"));
-  await createTicket(root, "design", "01.md", 'id: "01"\nstatus: done\ndepends_on: []');
-  await writeFile(join(root, ".scratch/design/spec.md"), '# Design\n\n**View:** architecture\n\n## Goal\nDesign reference');
-  await createTicket(root, "product", "01.md", 'id: "01"\nstatus: ready\ndepends_on:\n  - "design/01"');
-  const graph = await buildTaskGraph(root);
-  assert.equal(graph.specs[0].view, "architecture");
-  assert.equal(graph.tasks.length, 2);
-  assert.deepEqual(graph.frontier, ["product/01"]);
-  assert.deepEqual(graph.errors, []);
-});
-
 async function createArchitecture(root, feature, {
   approved = true,
   required = true,

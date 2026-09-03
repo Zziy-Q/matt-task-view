@@ -194,29 +194,9 @@ button, select { font: inherit; }
 /* Archify owns diagram layout; this shell only sizes the embedded overview. */
 .workflow-preview { position: relative; height: 160px; border: 1px solid #dce7f6; border-radius: 9px; overflow: hidden; background: #fbfdff; }
 .workflow-preview iframe { display: block; width: 100%; height: 100%; border: 0; }
-.workflow-note { font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
-.execution-panel { margin: 22px 0 26px; }
-.execution-panel .task-tabs, .execution-panel .task-list details { padding-right: 0; padding-left: 0; }
-.execution-panel .feature-graphs { border-top: 1px solid var(--line); margin-top: 12px; }
-.context-title { font-size: 14px; color: var(--text-secondary); }
-.feature-heading h2 { margin: 8px 0; font-size: 19px; line-height: 1.4; }
-.feature-heading > small { color: var(--primary); }
-.feature-heading p { margin: 0; color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
-.workspace-empty h2 { font-size: 20px; }
-.workspace-empty p { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
-.feature-history { padding: 18px var(--gutter); border-top: 1px solid var(--line); }
-.feature-history > summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; font-size: 14px; font-weight: 600; }
-.feature-history > summary::-webkit-details-marker { display: none; }
-.feature-history > summary span { color: var(--primary); font-size: 12px; font-weight: 400; }
-.feature-history > p { font-size: 12px; color: var(--text-secondary); }
-.feature-history ul { list-style: none; margin: 16px 0 0; padding: 0; }
-.feature-history li + li { border-top: 1px solid var(--line); }
-.feature-history button { display: block; width: 100%; padding: 14px 0; border: 0; background: none; text-align: left; cursor: pointer; }
-.feature-history button strong { display: block; font-size: 13px; color: var(--text); }
-.feature-history button small { display: block; margin: 5px 0 9px; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
-.feature-history button span { color: var(--primary); font-size: 12px; }
-.feature-history button:focus-visible, .feature-history > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-.spec-brief dd ul { margin: 0; padding-left: 16px; }
+.workflow-tickets { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+.workflow-tickets button { border: 1px solid var(--line); border-radius: 5px; padding: 4px 7px; background: #fff; color: var(--text-secondary); font: inherit; font-size: 11px; cursor: pointer; }
+.workflow-tickets button:hover, .workflow-tickets button:focus-visible { border-color: var(--primary); color: var(--primary); }
 .frontier { margin: 12px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
 .frontier strong { color: var(--text); }
 
@@ -228,8 +208,6 @@ button, select { font: inherit; }
 .task-tab.active { font-weight: 620; }
 .task-tab.active::after { position: absolute; right:8px; bottom: -1px; left:8px; height: 2px; background: var(--primary); border-radius: 2px 2px 0 0; content: ""; }
 .task-list { padding: 0; margin: 0; list-style: none; }
-.task-list > li:not(.task-feature) { border-bottom: 1px solid var(--line); }
-.task-list > li > details[data-task] { padding: 0 var(--gutter); }
 .task-list > .task-feature { border-bottom: 1px solid var(--line); }
 .task-feature-group { padding: 0; }
 .task-feature-summary { display: flex !important; min-height: 0 !important; justify-content: space-between; padding: 13px var(--gutter); background: var(--surface-subtle); }

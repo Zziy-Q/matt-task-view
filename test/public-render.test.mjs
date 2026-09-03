@@ -15,76 +15,6 @@ async function renderer() {
   return (expression) => runInContext(expression, context);
 }
 
-test("workspace focuses active work and keeps completed features in collapsed history", async () => {
-  const render = await renderer();
-  const task = (feature, status) => ({ id: `${feature}/01`, localId: "01", feature, title: feature, phase: "实现", status, path: `/repo/.scratch/${feature}/issues/01.md`, dependsOn: [], acceptanceCriteria: [] });
-  const graph = { features: ["old", "current"], tasks: [task("old", "done"), task("current", "in_progress")], specs: [], architectures: [], errors: [], frontier: [], edges: [] };
-  const html = render(`workspaceMarkup(${JSON.stringify(graph)})`);
-  assert.match(html, /value="current" selected/);
-  assert.match(html, /data-task="current\/01"/);
-  assert.doesNotMatch(html, /data-task="old\/01"/);
-  assert.match(html, /<details class="feature-history"><summary>/);
-  assert.doesNotMatch(html, /class="feature-graph" open/);
-  graph.tasks[1].status = "done";
-  const complete = render(`workspaceMarkup(${JSON.stringify(graph)})`);
-  assert.match(complete, /当前没有待开发工单/);
-  assert.doesNotMatch(complete, /<iframe/);
-});
-
-test("completed tickets awaiting architecture review stay in current work", async () => {
-  const render = await renderer();
-  const graph = { features: ["review"], tasks: [{ feature: "review", status: "done" }], errors: [], architectures: [{ feature: "review", status: "approved", workflowStatus: "actual_pending_review", developmentGatePassed: true }] };
-  assert.equal(render(`featureIsHistory(${JSON.stringify(graph)}, "review")`), false);
-});
-
-test("architecture reference is shown as a diagram and never as development tickets", async () => {
-  const render = await renderer();
-  const task = (feature) => ({ id: `${feature}/01`, localId: "01", feature, title: `${feature} ticket`, status: "in_progress", path: `/repo/.scratch/${feature}/issues/01.md`, dependsOn: [], acceptanceCriteria: [] });
-  const graph = { features: ["design", "product"], specs: [{ feature: "design", view: "architecture", title: "架构设计门禁", sections: {} }], tasks: [task("design"), task("product")], architectures: [{ feature: "design", status: "approved", workflowStatus: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准" }], errors: [], edges: [], frontier: [] };
-  const html = render(`workspaceMarkup(${JSON.stringify(graph)})`);
-  assert.match(html, /data-task="product\/01"/);
-  assert.doesNotMatch(html, /data-task="design\/01"|data-feature-record="design"|value="design"|\/workflow\/design\//);
-  assert.match(html, /href="\/architecture\/design\/artifact.html\?theme=light"/);
-  assert.doesNotMatch(html, /design ticket|架构设计门禁/);
-  assert.match(html, /进行中<\/span><strong>1<\/strong>/);
-});
-
-test("automatic feature changes reset filters and expose cross-feature plan errors", async () => {
-  const render = await renderer();
-  const task = (feature, status) => ({ id: `${feature}/01`, localId: "01", feature, title: feature, status, path: `/repo/.scratch/${feature}/issues/01.md`, dependsOn: [], acceptanceCriteria: [] });
-  const graph = { features: ["a", "b"], tasks: [task("a", "in_progress"), task("b", "ready")], specs: [], architectures: [], errors: [], frontier: [], edges: [] };
-  render(`workspaceMarkup(${JSON.stringify(graph)})`);
-  render('selectedTaskStatus = "in_progress"');
-  graph.tasks[0].status = "done";
-  const html = render(`workspaceMarkup(${JSON.stringify(graph)})`);
-  assert.match(html, /data-task="b\/01"/);
-  graph.errors.push({ path: "/repo/.scratch/a/issues/01.md", message: "a 的依赖不存在" });
-  render('selectedFeature = "b"; followCurrentFeature = false');
-  assert.match(render(`workspaceMarkup(${JSON.stringify(graph)})`), /a 的依赖不存在/);
-});
-
-test("spec summaries prefer scope over exclusions and keep full source on demand", async () => {
-  const render = await renderer();
-  const spec = { feature: "demo", title: "Demo", path: "/repo/.scratch/demo/spec.md", sections: { "Out of Scope": "不做支付", Scope: "只读查询", Goal: "查看数据", Decisions: "完整实施决定" } };
-  const html = render(`specContent(${JSON.stringify([spec])})`);
-  assert.match(html, /<dt>范围<\/dt><dd>只读查询<\/dd>/);
-  assert.match(html, /完整实施决定/);
-  delete spec.sections.Scope;
-  assert.match(render(`specContent(${JSON.stringify([spec])})`), /<dt>不在范围<\/dt><dd>不做支付<\/dd>/);
-});
-
-test("task list prioritizes current work and explains why other tickets wait", async () => {
-  const render = await renderer();
-  const task = (id, status) => ({ id: `demo/${id}`, localId: id, feature: "demo", title: `任务${id}`, status, phase: "实现", path: "/repo/.scratch/demo/issues/task.md", dependsOn: [], acceptanceCriteria: [] });
-  const tasks = [task("01", "done"), task("02", "ready"), task("03", "in_progress"), task("04", "ready")];
-  tasks[3].dependsOn = ["demo/03"];
-  const html = render(`taskList(${JSON.stringify(tasks)}, {frontier:["demo/02"]})`);
-  assert.ok(html.indexOf('data-task="demo/03"') < html.indexOf('data-task="demo/01"'));
-  assert.match(html, /当前任务/);
-  assert.match(html, /可开始/);
-  assert.match(html, /等待前置：demo\/03/);
-});
-
 test("dependency diagrams use separate Archify views and retain external dependencies", async () => {
   const render = await renderer();
   const tasks = [
@@ -94,19 +24,19 @@ test("dependency diagrams use separate Archify views and retain external depende
   const graph = { tasks, specs: [{ feature: "alpha", title: "架构功能" }], edges: [{ from: "alpha/01", to: "beta/01" }] };
   const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
   assert.equal((html.match(/<iframe /g) || []).length, 2);
-  assert.match(html, /alpha · 1 项工单/);
-  assert.match(html, /beta · 1 项工单/);
-  assert.match(html, /data-src="\/workflow\/alpha\/artifact\.html\?embed=1&theme=light"/);
+  assert.match(html, /架构功能/);
+  assert.match(html, /<strong>beta<\/strong>/);
+  assert.match(html, /src="\/workflow\/alpha\/artifact\.html\?embed=1&theme=light"/);
   assert.match(html, /src="\/workflow\/beta\/artifact\.html\?embed=1&theme=light"/);
-  assert.doesNotMatch(html, /data-task=/);
-  assert.doesNotMatch(html, /<iframe[^>]* src=/);
+  assert.match(html, /data-task="alpha\/01" title="架构任务"/);
+  assert.match(html, /data-task="beta\/01" title="视图任务"/);
   assert.match(html, /跨功能依赖/);
   assert.match(html, /beta\/01 ← alpha\/01/);
   const filtered = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify([tasks[1]])})`);
   assert.equal((filtered.match(/<iframe /g) || []).length, 1);
   assert.match(filtered, /beta\/01 ← alpha\/01/);
   assert.equal(render(`renderGraph(${JSON.stringify(graph)}, [])`), "");
-  render('expandedGraphFeatures.add("beta")');
+  render('collapsedGraphFeatures.add("alpha")');
   const collapsed = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
   assert.match(collapsed, /class="feature-graph" data-feature="alpha"/);
   assert.match(collapsed, /class="feature-graph" open data-feature="beta"/);
@@ -120,13 +50,13 @@ test("feature diagrams expand independently into the isolated Archify artifact",
   ];
   const graph = { tasks, specs: [], edges: [{ from: "demo/01", to: "demo/02" }] };
   const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
-  assert.match(html, /<details class="feature-graph" data-feature="demo"><summary>/);
+  assert.match(html, /<details class="feature-graph" open data-feature="demo"><summary>/);
   assert.match(html, /收起/);
   assert.match(html, /展开/);
   assert.match(html, /href="\/workflow\/demo\/artifact\.html\?theme=light"/);
   assert.match(html, /sandbox="allow-scripts"/);
   assert.match(html, /referrerpolicy="no-referrer"/);
-  assert.match(html, /工单依赖/);
+  assert.match(html, /ARCHIFY · 任务依赖/);
 });
 
 test("task list separates repeated local numbers into collapsible feature groups", async () => {
@@ -168,7 +98,7 @@ test("spec view renders every local section without empty hard-coded fields", as
   assert.doesNotMatch(html, /<dd><\/dd>/);
 });
 
-test("task details keep every task and checked acceptance criterion visible", async () => {
+test("implementation detail keeps every task and checked acceptance criterion visible", async () => {
   const render = await renderer();
   const tasks = [
     { id: "demo/01", localId: "01", feature: "demo", phase: "Foundation", title: "完成基线", status: "done", blockedReason: "", dependsOn: [], acceptanceCriteria: [{ text: "基线已验证", state: "accepted" }] },
@@ -178,8 +108,7 @@ test("task details keep every task and checked acceptance criterion visible", as
   const graph = { errors: [], frontier: [], specs: [], tasks };
   const summary = { total: 3, done: 1, in_progress: 1, ready: 1, blocked: 0, progressPercent: 33 };
 
-  tasks.forEach((task) => { task.path = `/repo/.scratch/demo/issues/${task.localId}.md`; });
-  const html = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
+  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
 
   assert.match(html, /完成基线/);
   assert.match(html, /读取 Inventory/);
@@ -234,7 +163,7 @@ test("pending architecture renders as the second native SDD stage with a safe Ch
   const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
 
   assert.ok(html.indexOf("规格与边界") < html.indexOf("架构设计"));
-  assert.ok(html.indexOf("架构设计") < html.indexOf("验证与交付"));
+  assert.ok(html.indexOf("架构设计") < html.indexOf("任务计划"));
   assert.match(html, /请明确批准当前架构修订/);
   assert.match(html, /设计类型/);
   assert.match(html, /绿地规划/);
@@ -244,7 +173,7 @@ test("pending architecture renders as the second native SDD stage with a safe Ch
   assert.match(html, /批准修订/);
   assert.match(html, /接口服务/);
   assert.match(html, /绑定工单/);
-  assert.match(html, /class="sdd-focus blocked"/);
+  assert.match(html, /等待架构门禁/);
   assert.match(html, /<details class="sdd-card in_progress architecture-card" open>/);
   assert.match(html, /title="Archify 架构图概览"/);
   assert.match(html, /sandbox="allow-scripts"/);
@@ -283,7 +212,7 @@ test("explicit no-impact architecture decision shows its reason without claiming
   assert.doesNotMatch(html, /architecture-card" open/);
 });
 
-test("legacy snapshots show only relevant context without an empty architecture stage", async () => {
+test("legacy snapshots without architecture facts keep a compatible five-stage empty state", async () => {
   const render = await renderer();
   const tasks = [{
     id: "legacy/01", localId: "01", feature: "legacy", phase: "维护", title: "修复旧功能", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
@@ -293,8 +222,10 @@ test("legacy snapshots show only relevant context without an empty architecture 
 
   const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
 
-  assert.equal((html.match(/class="sdd-card /g) || []).length, 2);
-  assert.doesNotMatch(html, /architecture-card/);
+  assert.equal((html.match(/class="sdd-card /g) || []).length, 5);
+  assert.match(html, /架构设计/);
+  assert.match(html, /兼容无架构记录的旧功能/);
+  assert.match(html, /此旧功能没有架构记录/);
   assert.doesNotMatch(html, /architecture-card" open/);
   assert.match(html, /可开始 01/);
 });
@@ -546,7 +477,7 @@ test("ticket architecture diagnostics block the plan summary and remain visible 
   const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
 
   assert.match(html, /先修正 01 的架构绑定诊断/);
-  assert.match(html, /class="sdd-focus blocked"/);
+  assert.match(html, /<details class="sdd-card blocked"><summary>[\s\S]*?<strong>任务计划<\/strong>/);
   assert.match(html, /需要架构设计的工单必须填写 architecture_revision/);
   assert.doesNotMatch(html, /依赖已校验/);
 });
@@ -683,7 +614,7 @@ test("unknown planning status fails closed and foreign baseline ownership stays 
 
   assert.match(html, /未知架构状态/);
   assert.match(html, /当前项目基线来自 other-feature/);
-  assert.match(html, /class="sdd-focus blocked"/);
+  assert.match(html, /等待架构门禁/);
   assert.doesNotMatch(html, /展示工件被篡改/);
 });
 
@@ -713,7 +644,7 @@ test("unknown architecture workflow and target states stay blocked and open", as
     const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify([task])}, ${JSON.stringify(summary)})`);
     assert.match(html, /class="sdd-card blocked architecture-card" open/);
     assert.match(html, /未知架构状态（已锁定）/);
-    assert.match(html, /class="sdd-focus blocked"/);
+    assert.match(html, /等待架构门禁/);
     assert.doesNotMatch(html, /#focus=/);
   }
 });
