@@ -7,6 +7,13 @@ description: "Matt local development companion: after a formal spec, enforce the
 
 本技能连接 Matt 本地 Markdown 开发流与只读任务视图。票据、架构四件套和项目基线始终是事实来源；任务视图只读取、校验和展示，绝不代替用户批准、复制基线或修改票据。
 
+## 配套前提
+
+- 完整开发流程需先安装 [Matt Pocock Skills](https://github.com/mattpocock/skills)，并在目标仓库通过 `setup-matt-pocock-skills` 配置本地 Markdown tracker；开发任务由 `ask-matt` 路由至对应技能。
+- 本技能是独立的 companion 适配，不包含上游开发技能。架构门禁、票据 frontmatter 和自动打开 Codex 侧栏是本项目的约定，需在正式规格完成后、`to-tickets` 前加载。
+- 规格使用 `.scratch/<feature>/spec.md`，票据按 [ticket-contract.md](./references/ticket-contract.md) 保存到 `.scratch/<feature>/issues/`；本视图不读取远端 issue tracker。
+- 任务视图服务不在运行时调用 Skills。已有符合契约的文件可独立查看；启动视图不会生成规格、票据或执行代码开发。
+
 ## 1. 在任务拆分前完成架构门禁
 
 固定顺序是：**正式规格完成 → 架构影响判断 → `/to-tickets` 发布票据**。不得先发布 issues 再补架构决定。

@@ -2,6 +2,8 @@
 
 本地 Markdown 票据的只读 SDD 开发工作台：读取 `.scratch/<feature>/issues/`，在 `127.0.0.1` 展示下一步、实际开发工单、任务依赖与验收记录。
 
+> **配套使用：**要在 Codex 中使用完整的“规格 → 工单 → 实施 → 任务视图”流程，请先安装 [Matt Pocock Skills](https://github.com/mattpocock/skills)，再接入本仓库的 `matt-task-view` companion skill。上游 Skills 引导 Agent 规划、拆票和实施；本项目读取本地文件，展示进度与依赖。克隆本仓库不会自动安装上游 Skills，也不会自动生成开发工单。
+
 适合在 Codex 右侧面板或普通浏览器中跟踪本地开发。规格、票据和架构文件保存在项目内，视图负责读取与解释这些事实。主服务使用 Node.js 标准库和原生 HTML/CSS/JavaScript；任务依赖图由仓库内固定版本的 Archify 生成，无需安装依赖、数据库或前端构建步骤。
 
 **本地 Markdown · 下一步提示 · 列表 / 依赖图切换 · 架构版本追溯 · 中文界面**
@@ -10,7 +12,19 @@
 
 > 实际运行截图：4 张开发工单已标记完成，16 条验收清单仍未勾选。两类记录分别展示；清单未勾选不等于代码尚未实现，工单完成也不等于已经交付。
 
-[界面导览](docs/界面导览.md) · [快速运行](#快速运行) · [功能清单](#功能说明) · [认证与请求流程](docs/认证与请求流程.md)
+[界面导览](docs/界面导览.md) · [配套安装](#接入-codex--matt-工作流) · [快速运行](#快速运行) · [功能清单](#功能说明) · [认证与请求流程](docs/认证与请求流程.md)
+
+## 与 Matt Pocock Skills 的关系
+
+| 部分 | 职责 |
+| --- | --- |
+| [Matt Pocock Skills](https://github.com/mattpocock/skills) | 开发流程：通过 `ask-matt` 路由，按需完成规格、`to-tickets` 拆票、`implement` 实施及评审 |
+| 本仓库的 [companion skill](skills/matt-task-view/SKILL.md) | 本地适配：约定票据字段、架构记录和 Codex 右侧视图的启动时机 |
+| Matt Task View 服务与网页 | 只读展示：解析文件、校验依赖、显示 SDD 阶段与验收记录，并随文件变化刷新 |
+
+这是独立的配套项目。架构门禁、Archify 集成、票据 frontmatter 与自动打开侧栏属于本项目的适配约定，并非安装上游 Skills 后自动具备的功能。
+
+**Skills 是完整工作流的配套前提，不是网页服务的运行时依赖。**只想查看示例，或已有符合[票据契约](skills/matt-task-view/references/ticket-contract.md)的本地 Markdown，可以直接启动视图。服务不会调用 Skills，也不会代替 Agent 规划或执行开发任务。
 
 ## 本地开发流程
 
@@ -100,7 +114,27 @@ node /path/to/matt-task-view/src/cli.mjs serve --port 0
 
 ### 接入 Codex / Matt 工作流
 
-将仓库中的 [companion skill](skills/matt-task-view/SKILL.md) 及其 `references/` 一起放入你的技能目录，并让 `matt-task-view` 命令可用。该 skill 约定在发布本地票据后自动打开 Codex 右侧视图，也支持“启动开发任务视图”。复制技能是单独的本机配置步骤，克隆本仓库不会自动安装技能。
+先按 [Matt Pocock Skills 上游安装说明](https://github.com/mattpocock/skills#installation-30-second-setup)安装开发技能：
+
+```sh
+npx skills@latest add mattpocock/skills
+```
+
+在安装器中选择 Codex，并包含 `setup-matt-pocock-skills` 及所需的开发流程技能。随后：
+
+1. 在目标项目中运行 `setup-matt-pocock-skills`，选择**本地 Markdown** 作为 issue tracker，确认规格保存在 `.scratch/<feature>/spec.md`、每张票据保存在 `.scratch/<feature>/issues/`。本视图目前不读取 GitHub / Linear 等远端工单。
+2. 将本仓库的整个 `skills/matt-task-view/` 目录（包括 `SKILL.md` 和 `references/`）放入 Codex 的技能目录，并让 `matt-task-view` 命令可用。可使用前文的 `npm link`；不使用短命令时，需让 Agent 知道工具的实际路径。
+3. 在目标项目的 `AGENTS.md` 中加入以下衔接约定，让 Agent 在拆票前读取契约，并在拆票后打开视图：
+
+```markdown
+开发任务先通过 ask-matt 选择对应流程。
+正式规格完成后、to-tickets 前，读取 matt-task-view companion skill，
+按其约定完成架构影响判断，并使用 references/ticket-contract.md 生成本地票据。
+to-tickets 写完后、首次 implement 前，启动或复用当前项目的任务视图，
+并在同一回合打开到 Codex 右侧面板。
+```
+
+接入后也可直接对 Codex 说“启动开发任务视图”。验收接入时，确认视图显示的是当前项目的工单、依赖和源文件位置。只有上游 Skills、但未配置本地目录和票据字段时，不能保证视图正确解析；只有视图、但没有票据时，会显示空任务状态。
 
 ## 数据目录和票据格式
 
@@ -197,5 +231,6 @@ npm test
 
 ## 参考
 
+- [Matt Pocock Skills](https://github.com/mattpocock/skills)——配套开发流程与上游安装说明；本仓库提供本地票据视图及 companion 适配。
 - [Archify](https://github.com/tt-a1i/archify)——任务依赖图固定使用 `06dd052602dd9a369e4d034e24faef0917b5a60c` 的 workflow v2 运行文件，来源和许可证随仓库保留。
 - [GitHub：将本地代码加入 GitHub](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github)——本仓库采用已有本地代码的首次推送流程。
