@@ -1,16 +1,18 @@
 # Matt Dev View
 
+**简体中文** | [English](README.en.md)
+
 Matt Pocock Skills 负责规划与实施，Matt Dev View 负责只读展示开发过程。
 
 [![CI](https://github.com/Zziy-Q/matt-task-view/actions/workflows/ci.yml/badge.svg)](https://github.com/Zziy-Q/matt-task-view/actions/workflows/ci.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [版本 v0.2.1](https://github.com/Zziy-Q/matt-task-view/releases/tag/v0.2.1)
 
-读取项目内的 Markdown 规格、工单和架构记录，在 Codex 右侧面板或浏览器中回答：**现在到哪一步、下一张工单是什么、哪些验收还需核对。** 本机只读，零运行依赖，无需账号、数据库或前端构建。
+读取项目内的 Markdown 规格、工单和架构记录，在 Codex 右侧面板或浏览器中回答：**现在到哪一步、下一张工单是什么、哪些验收还需核对。** 本机只读，零第三方运行依赖，无需账号、数据库或前端构建。
 
 ![SDD 概览：下一步、工单进度与五阶段入口](docs/images/SDD开发工单概览.png)
 
-实际运行的网页截图，不含 Codex 应用外框。示例中 4 张工单已标记完成，16 条验收清单仍未勾选；工单完成、验收确认和交付分别记录。[查看全部界面与操作说明](docs/界面导览.md)。
+实际运行的网页截图，不含 Codex 应用外框。示例中 4 张工单已标记完成，16 条验收清单仍未勾选；工单完成、验收确认和交付分别跟踪。[查看全部界面与操作说明](docs/界面导览.md)。
 
 ## 快速运行
 
@@ -87,9 +89,9 @@ node /path/to/matt-task-view/src/cli.mjs serve --port 0
 
 ## 本地开发流程
 
-固定顺序是：完成正式规格 → 判断架构影响并通过门禁 → `to-tickets` 发布票据 → 首次 implement。`greenfield` 从规划架构 v0 开始；`existing` 先恢复或固定已验证的当前基线。无架构影响也必须记录非空跳过理由。
+固定顺序是：完成正式规格 → 记录架构影响，需要架构时通过门禁 → `to-tickets` 发布票据 → 首次 implement。`greenfield` 从规划架构 v0 开始；`existing` 先恢复或固定已验证的当前基线。无架构影响也必须记录非空跳过理由。
 
-任务全部完成后生成 `actual` 实际架构并复核差异；用户显式批准后，才由外部流程把实际四件套精确提升为长期基线。任务视图只读展示，不批准或复制架构资产。命令、完整 JSON 模板和批准摘要规则见[架构契约](skills/matt-task-view/references/architecture-contract.md)。
+当 `required=true` 时，任务全部完成后生成 `actual` 实际架构并复核差异；用户显式批准后，才由外部流程把实际四件套精确提升为长期基线。`required=false` 只记录非空跳过理由，不生成架构图、回执或批准记录。任务视图只读展示，不批准或复制架构资产。命令、完整 JSON 模板和批准摘要规则见[架构契约](skills/matt-task-view/references/architecture-contract.md)。
 
 ## 功能说明
 
@@ -97,7 +99,7 @@ node /path/to/matt-task-view/src/cli.mjs serve --port 0
 | --- | --- |
 | 下一步与 SDD 阶段 | 先给出当前行动，再进入规格、架构、任务计划、实施、验证与交付 |
 | 工单列表 / 依赖图 | 同一批实际开发工单切换查看；Archify 横向图可收起、展开大图，图下索引打开工单详情 |
-| 可执行前沿 | `ready` 且依赖完成、架构绑定有效的工单才可开始；诊断失败时停止给出前沿 |
+| 可执行前沿 | `ready` 且依赖完成的工单才可开始；需要架构时还必须具备有效绑定，诊断失败时停止给出前沿 |
 | 筛选与详情 | 按功能、状态筛选，核对依赖、验收清单和 Markdown 来源；选择状态保存在 URL |
 | 架构追溯 | 仅从 SDD 架构入口查看当前、目标、实际与长期基线，以及批准修订和组件定位 |
 | 验收与交付 | `[ ]` 未勾选、`[~]` 已实现待验收、`[x]` 已验收；工单 `done` 不等于已交付 |

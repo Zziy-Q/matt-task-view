@@ -1,6 +1,7 @@
 {
   "name": "matt-task-view",
   "version": "0.2.1",
+  "description": "Read-only local SDD task view for Matt Pocock Skills in Codex",
   "license": "MIT",
   "engines": {
     "node": ">=24"

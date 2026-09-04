@@ -82,6 +82,27 @@ test("README gives a short architecture-first local flow without duplicating the
   assert.doesNotMatch(readme, /approvedReviewSha256/);
 });
 
+test("README exposes equivalent Chinese and English entry points", async () => {
+  const chinese = await text("README.md");
+  const english = await text("README.en.md");
+  const chineseInterface = await text("docs/界面导览.md");
+  const englishInterface = await text("docs/interface-guide.en.md");
+  const chineseAuth = await text("docs/认证与请求流程.md");
+  const englishAuth = await text("docs/authentication-and-request-flow.en.md");
+
+  assert.match(chinese, /\*\*简体中文\*\* \| \[English\]\(README\.en\.md\)/);
+  assert.match(english, /\[简体中文\]\(README\.md\) \| \*\*English\*\*/);
+  for (const readme of [chinese, english]) {
+    assert.match(readme, /node src\/cli\.mjs serve --port 0/);
+    assert.match(readme, /Matt Pocock Skills/);
+    assert.match(readme, /docs\/images\/SDD开发工单概览\.png/);
+  }
+  assert.match(chineseInterface, /\*\*简体中文\*\* \| \[English\]\(interface-guide\.en\.md\)/);
+  assert.match(englishInterface, /\[简体中文\]\(界面导览\.md\) \| \*\*English\*\*/);
+  assert.match(chineseAuth, /\*\*简体中文\*\* \| \[English\]\(authentication-and-request-flow\.en\.md\)/);
+  assert.match(englishAuth, /\[简体中文\]\(认证与请求流程\.md\) \| \*\*English\*\*/);
+});
+
 
 test("documented minimal ticket and architecture examples run without external dependencies or approval", async () => {
   const readme = await text("README.md");
