@@ -128,7 +128,7 @@ function specFromSource(source, { feature, path }) {
     heading[1].trim(),
     source.slice(heading.index + heading[0].length, headings[index + 1]?.index).trim(),
   ]).filter(([, content]) => content));
-  return { feature, path, title, sections };
+  return { feature, path, title, sections, ...(/^\*\*View:\*\* architecture\s*$/m.test(source.split(/^##\s/m)[0]) ? { view: "architecture" } : {}) };
 }
 
 async function featureSpec(featureRoot, feature) {

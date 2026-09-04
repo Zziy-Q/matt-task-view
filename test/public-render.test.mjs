@@ -5,7 +5,7 @@ import test from "node:test";
 
 async function renderer() {
   const source = await readFile(new URL("../src/public/app.js", import.meta.url), "utf8");
-  const app = { innerHTML: "", textContent: "" };
+  const app = { innerHTML: "", textContent: "", querySelectorAll: () => [], querySelector: () => ({ innerHTML: "", insertAdjacentHTML() {}, addEventListener() {} }) };
   const context = createContext({
     document: { querySelector: () => app },
     EventSource: class { addEventListener() {} },
@@ -14,6 +14,34 @@ async function renderer() {
   runInContext(source, context);
   return (expression) => runInContext(expression, context);
 }
+
+test("architecture reference stays in the SDD architecture stage only", async () => {
+  const run = await renderer();
+  const task = (feature) => ({ id: `${feature}/01`, localId: "01", feature, title: `${feature} ticket`, phase: "实现", status: "done", dependsOn: [], acceptanceCriteria: [], path: `/repo/.scratch/${feature}/issues/01.md` });
+  const graph = { features: ["design", "product"], tasks: [task("design"), task("product")], specs: [{ feature: "design", view: "architecture", title: "架构设计门禁与中文架构阶段卡片", sections: {}, path: "/repo/.scratch/design/spec.md" }, { feature: "product", title: "实际开发", sections: {}, path: "/repo/.scratch/product/spec.md" }], architectures: [{ feature: "design", status: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准", components: [] }], frontier: [], edges: [], errors: [] };
+  run(`render(${JSON.stringify(graph)})`);
+  const html = run('document.querySelector("#app").innerHTML');
+  assert.match(html, /SDD 开发流程/);
+  assert.match(html, /class="sdd-card [^"]* architecture-card"/);
+  assert.match(html, /\/architecture\/design\/artifact.html/);
+  assert.doesNotMatch(html, /架构设计门禁与中文架构阶段卡片|design ticket|\/workflow\/design\/|value="design"/);
+  assert.match(html, /product ticket/);
+  assert.equal(run(`summarize(visibleTasks(${JSON.stringify(graph)})).total`), 1);
+  run('selectedFeature = "product"');
+  assert.equal(run(`selectedArchitectures(${JSON.stringify(graph)}).length`), 1);
+  graph.architectures[0].status = "pending_approval";
+  graph.architectures[0].developmentGatePassed = false;
+  graph.tasks[1].status = "ready";
+  graph.frontier = ["product/01"];
+  graph.architectures.push({ feature: "product", status: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准", components: [] });
+  run(`render(${JSON.stringify(graph)})`);
+  const selected = run('document.querySelector("#app").innerHTML');
+  assert.match(selected, /可开始 01/);
+  assert.match(selected, /\/architecture\/product\/artifact.html/);
+  assert.match(selected, /\/architecture\/design\/artifact.html/);
+  assert.doesNotMatch(selected, /请选择一个功能查看可信架构/);
+
+});
 
 test("dependency diagrams use separate Archify views and retain external dependencies", async () => {
   const render = await renderer();

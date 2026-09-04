@@ -67,8 +67,12 @@ const stageIcons = {
   verification: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.75 15.5 5v4.2c0 3.5-2.2 6.15-5.5 8.05-3.3-1.9-5.5-4.55-5.5-8.05V5zM7.5 10l1.7 1.7 3.5-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"/></svg>',
 };
 
+function isArchitectureReference(graph, feature) {
+  return graph.specs?.some((spec) => spec.feature === feature && spec.view === "architecture");
+}
+
 function visibleTasks(graph) {
-  return selectedFeature === "all" ? graph.tasks : graph.tasks.filter((task) => task.feature === selectedFeature);
+  return graph.tasks.filter((task) => !isArchitectureReference(graph, task.feature) && (selectedFeature === "all" || task.feature === selectedFeature));
 }
 
 function summarize(tasks) {
@@ -219,7 +223,7 @@ function specContent(specs) {
 
 function selectedArchitectures(graph) {
   const architectures = Array.isArray(graph.architectures) ? graph.architectures : [];
-  return selectedFeature === "all" ? architectures : architectures.filter((architecture) => architecture.feature === selectedFeature);
+  return selectedFeature === "all" ? architectures : architectures.filter((architecture) => architecture.feature === selectedFeature || isArchitectureReference(graph, architecture.feature));
 }
 
 function architectureModeLabel(mode) {
@@ -315,14 +319,18 @@ function sddFlow(graph, tasks, summary) {
   const blocked = tasks.filter((task) => task.status === "blocked");
   const ready = tasks.filter((task) => graph.frontier.includes(task.id));
   const allDone = summary.total > 0 && summary.done === summary.total;
-  const specs = graph.specs.filter((spec) => selectedFeature === "all" || spec.feature === selectedFeature);
+  const specs = graph.specs.filter((spec) => spec.view !== "architecture" && (selectedFeature === "all" || spec.feature === selectedFeature));
   const architectures = selectedArchitectures(graph);
-  const architecture = architecturePresentation(architectures, tasks);
-  const blockedArchitectures = architectures.filter(architectureBlocksDevelopment);
+  const architecture = architecturePresentation(architectures, graph.tasks || tasks);
+  const developmentArchitectures = architectures.filter((entry) => !isArchitectureReference(graph, entry.feature));
+  const architectureDetails = architectures.some((entry) => isArchitectureReference(graph, entry.feature))
+    ? architectures.map((entry) => architectureContent([entry], tasks)).join("")
+    : architectureContent(architectures, tasks);
+  const blockedArchitectures = developmentArchitectures.filter(architectureBlocksDevelopment);
   const architectureBlocked = blockedArchitectures.length > 0;
   const bindingProblems = architectureBlocked ? [] : tasks.filter((task) => ["invalid", "unverifiable"].includes(task.bindingStatus)
     || task.architectureDiagnostics?.length);
-  const architectureReview = architectures.find((entry) => ["actual_pending_review", "baseline_pending"].includes(entry.workflowStatus || entry.status));
+  const architectureReview = developmentArchitectures.find((entry) => ["actual_pending_review", "baseline_pending"].includes(entry.workflowStatus || entry.status));
   const implementation = graph.errors.length ? ["blocked", "需修正", "计划诊断发现问题"]
     : bindingProblems.length ? ["blocked", "架构绑定需修正", `${bindingProblems.length} 项工单绑定有误`]
     : active.length ? ["in_progress", "进行中", `当前：${active.map((task) => task.localId).join("、")}`]
@@ -330,7 +338,7 @@ function sddFlow(graph, tasks, summary) {
     : allDone ? ["done", `完成 ${summary.done} / ${summary.total}`, "任务实现已完成"]
     : ["ready", "待开始", ready.length ? `可开始：${ready.map((task) => task.localId).join("、")}` : "等待可执行任务"];
   const nextAction = graph.errors.length ? "先修正任务图中的诊断问题。"
-    : architectureBlocked ? (architectures.length === 1 ? architectures[0].nextStep : `先处理 ${blockedArchitectures.length} 个功能的架构门禁。`)
+    : architectureBlocked ? (developmentArchitectures.length === 1 ? developmentArchitectures[0].nextStep : `先处理 ${blockedArchitectures.length} 个功能的架构门禁。`)
     : bindingProblems.length ? `先修正 ${bindingProblems.map((task) => task.localId).join("、")} 的架构绑定诊断。`
     : architectureReview ? architectureReview.nextStep
     : active.length ? `继续完成 ${active.map((task) => task.localId).join("、")} 的验收项。`
@@ -345,15 +353,16 @@ function sddFlow(graph, tasks, summary) {
     : bindingProblems.length ? ["blocked", "绑定需修正", `${bindingProblems.length} 项工单存在架构诊断`]
     : tasks.length ? ["done", "已完成", `${summary.total} 项任务 · ${ready.length} 项可开始`]
     : ["ready", "待拆分", "等待本地任务"];
-  return `<section class="section sdd"><h2 class="section-title">SDD 开发流程</h2><p class="sdd-focus ${architectureBlocked ? "blocked" : architectureReview ? "in_progress" : implementation[0]}"><strong>下一步：</strong>${escapeHtml(nextAction)}</p><div class="sdd-cards">${sddCard("规格与边界", specs.length ? "done" : "ready", specs.length ? "已完成" : "待生成", specs.length ? `${specs.length} 份本地规格` : "等待 spec.md", specContent(specs), false, "spec")}${sddCard("架构设计", architecture.state, architecture.label, architecture.detail, architectureContent(architectures, tasks), architecture.open, "architecture", "architecture-card")}${sddCard("任务计划", planState[0], planState[1], planState[2], graphContent, false, "plan")}${sddCard("实施明细", implementation[0], implementation[1], implementation[2], taskRows(tasks, true), active.length > 0, "implementation")}${sddCard("验证与交付", allDone ? "ready" : "waiting", allDone ? "待记录" : "等待实施", allDone ? "实现完成，尚未记录验证证据" : "实施完成后开启", verificationContent, false, "verification")}</div></section>`;
+  return `<section class="section sdd"><h2 class="section-title">SDD 开发流程</h2><p class="sdd-focus ${architectureBlocked ? "blocked" : architectureReview ? "in_progress" : implementation[0]}"><strong>下一步：</strong>${escapeHtml(nextAction)}</p><div class="sdd-cards">${sddCard("规格与边界", specs.length ? "done" : "ready", specs.length ? "已完成" : "待生成", specs.length ? `${specs.length} 份本地规格` : "等待 spec.md", specContent(specs), false, "spec")}${sddCard("架构设计", architecture.state, architecture.label, architecture.detail, architectureDetails, architecture.open, "architecture", "architecture-card")}${sddCard("任务计划", planState[0], planState[1], planState[2], graphContent, false, "plan")}${sddCard("实施明细", implementation[0], implementation[1], implementation[2], taskRows(tasks, true), active.length > 0, "implementation")}${sddCard("验证与交付", allDone ? "ready" : "waiting", allDone ? "待记录" : "等待实施", allDone ? "实现完成，尚未记录验证证据" : "实施完成后开启", verificationContent, false, "verification")}</div></section>`;
 }
 
 function render(graph) {
-  if (!graph.features.includes(selectedFeature)) selectedFeature = "all";
+  const features = graph.features.filter((feature) => !isArchitectureReference(graph, feature));
+  if (!features.includes(selectedFeature)) selectedFeature = "all";
   const tasks = visibleTasks(graph);
   const summary = summarize(tasks);
   const frontier = graph.frontier.filter((id) => tasks.some((task) => task.id === id));
-  app.innerHTML = `<div class="shell"><header class="header"><h1>开发任务视图</h1><select id="feature-filter" aria-label="选择工作范围"><option value="all">全部功能</option>${graph.features.map((feature) => `<option value="${escapeHtml(feature)}" ${selectedFeature === feature ? "selected" : ""}>${escapeHtml(feature)}</option>`).join("")}</select></header><section class="section progress-section"><h2 class="section-title">进度</h2><div class="progress-line"><div class="progress-count">${summary.done}<span> / ${summary.total}</span></div><strong class="progress-percent">${summary.progressPercent}%</strong></div><progress value="${summary.done}" max="${Math.max(summary.total, 1)}">${summary.progressPercent}%</progress><div class="stat-grid"><div class="stat"><strong>${summary.total}</strong><span>总任务</span></div><div class="stat"><strong class="done">${summary.done}</strong><span>已完成</span></div><div class="stat"><strong class="in_progress">${summary.in_progress}</strong><span>进行中</span></div><div class="stat"><strong class="ready">${summary.ready}</strong><span>待开始</span></div></div></section>${sddFlow(graph, tasks, summary)}${graph.errors.length ? `<section class="error"><strong>计划需要修正</strong><ul>${graph.errors.map((error) => `<li>${escapeHtml(error.message)}<br><small>${escapeHtml(displayPath(error.path))}</small></li>`).join("")}</ul></section>` : ""}<section class="section"><h2 class="section-title">依赖流程图</h2>${tasks.length ? renderGraph(graph, tasks) : '<p class="empty">还没有可视化的本地任务。</p>'}${frontier.length ? `<p class="frontier"><strong>可开始：</strong>${frontier.map(escapeHtml).join("、")}</p>` : ""}</section><section><h2 class="section-title section">任务列表</h2><ul class="task-list">${taskList(tasks, graph)}</ul></section><p class="updated">基于本地 Markdown 规格与任务图 · 自动刷新</p></div>`;
+  app.innerHTML = `<div class="shell"><header class="header"><h1>开发任务视图</h1><select id="feature-filter" aria-label="选择工作范围"><option value="all">全部功能</option>${features.map((feature) => `<option value="${escapeHtml(feature)}" ${selectedFeature === feature ? "selected" : ""}>${escapeHtml(feature)}</option>`).join("")}</select></header><section class="section progress-section"><h2 class="section-title">进度</h2><div class="progress-line"><div class="progress-count">${summary.done}<span> / ${summary.total}</span></div><strong class="progress-percent">${summary.progressPercent}%</strong></div><progress value="${summary.done}" max="${Math.max(summary.total, 1)}">${summary.progressPercent}%</progress><div class="stat-grid"><div class="stat"><strong>${summary.total}</strong><span>总任务</span></div><div class="stat"><strong class="done">${summary.done}</strong><span>已完成</span></div><div class="stat"><strong class="in_progress">${summary.in_progress}</strong><span>进行中</span></div><div class="stat"><strong class="ready">${summary.ready}</strong><span>待开始</span></div></div></section>${sddFlow(graph, tasks, summary)}${graph.errors.length ? `<section class="error"><strong>计划需要修正</strong><ul>${graph.errors.map((error) => `<li>${escapeHtml(error.message)}<br><small>${escapeHtml(displayPath(error.path))}</small></li>`).join("")}</ul></section>` : ""}<section class="section"><h2 class="section-title">依赖流程图</h2>${tasks.length ? renderGraph(graph, tasks) : '<p class="empty">还没有可视化的本地任务。</p>'}${frontier.length ? `<p class="frontier"><strong>可开始：</strong>${frontier.map(escapeHtml).join("、")}</p>` : ""}</section><section><h2 class="section-title section">任务列表</h2><ul class="task-list">${taskList(tasks, graph)}</ul></section><p class="updated">基于本地 Markdown 规格与任务图 · 自动刷新</p></div>`;
   app.querySelector(".progress-section").innerHTML = progressPanel(summary);
   app.querySelector(".task-list").insertAdjacentHTML("beforebegin", taskTabs(tasks));
   app.querySelectorAll(".feature-graph").forEach((detail) => detail.addEventListener("toggle", () => {
