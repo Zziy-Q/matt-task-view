@@ -5,715 +5,300 @@ import test from "node:test";
 
 async function renderer() {
   const source = await readFile(new URL("../src/public/app.js", import.meta.url), "utf8");
-  const app = { innerHTML: "", textContent: "", querySelectorAll: () => [], querySelector: () => ({ innerHTML: "", insertAdjacentHTML() {}, addEventListener() {} }) };
+  const element = () => ({ innerHTML: "", textContent: "", querySelectorAll: () => [], addEventListener() {}, classList: { add() {} } });
+  const app = element();
+  const closeButton = element();
+  const listeners = {};
+  const inspector = {
+    ...element(), open: false,
+    querySelector: () => closeButton,
+    addEventListener: (name, callback) => { listeners[name] = callback; },
+    showModal() { this.open = true; },
+    close() { this.open = false; listeners.close?.(); },
+  };
+  const location = { search: "" };
   const context = createContext({
-    document: { querySelector: () => app },
+    document: { querySelector: (selector) => ({ "#app": app, "#inspector": inspector })[selector] || null, querySelectorAll: () => [] },
+    location, URLSearchParams,
+    history: { replaceState: (_state, _title, url) => { location.search = url; } },
+    window: { scrollTo() {} },
     EventSource: class { addEventListener() {} },
-    fetch: async () => { throw new Error("No network in renderer tests"); },
+    // Initial refresh stays pending; each test supplies its snapshot explicitly.
+    fetch: () => new Promise(() => {}),
   });
   runInContext(source, context);
-  return (expression) => runInContext(expression, context);
+  const run = (expression) => runInContext(expression, context);
+  return {
+    run, app, inspector, location,
+    load(snapshot, selection = {}) {
+      run(`graph = ${JSON.stringify(snapshot)}; state = { view: 'overview', mode: 'list', feature: '', status: 'all', task: '', ...${JSON.stringify(selection)} }; render();`);
+    },
+  };
 }
 
-test("architecture reference stays in the SDD architecture stage only", async () => {
-  const run = await renderer();
-  const task = (feature) => ({ id: `${feature}/01`, localId: "01", feature, title: `${feature} ticket`, phase: "实现", status: "done", dependsOn: [], acceptanceCriteria: [], path: `/repo/.scratch/${feature}/issues/01.md` });
-  const graph = { features: ["design", "product"], tasks: [task("design"), task("product")], specs: [{ feature: "design", view: "architecture", title: "架构设计门禁与中文架构阶段卡片", sections: {}, path: "/repo/.scratch/design/spec.md" }, { feature: "product", title: "实际开发", sections: {}, path: "/repo/.scratch/product/spec.md" }], architectures: [{ feature: "design", status: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准", components: [] }], frontier: [], edges: [], errors: [] };
-  run(`render(${JSON.stringify(graph)})`);
-  const html = run('document.querySelector("#app").innerHTML');
-  assert.match(html, /SDD 开发流程/);
-  assert.match(html, /class="sdd-card [^"]* architecture-card"/);
-  assert.match(html, /\/architecture\/design\/artifact.html/);
-  assert.doesNotMatch(html, /架构设计门禁与中文架构阶段卡片|design ticket|\/workflow\/design\/|value="design"/);
-  assert.match(html, /product ticket/);
-  assert.equal(run(`summarize(visibleTasks(${JSON.stringify(graph)})).total`), 1);
-  run('selectedFeature = "product"');
-  assert.equal(run(`selectedArchitectures(${JSON.stringify(graph)}).length`), 1);
-  graph.architectures[0].status = "pending_approval";
-  graph.architectures[0].developmentGatePassed = false;
-  graph.tasks[1].status = "ready";
-  graph.frontier = ["product/01"];
-  graph.architectures.push({ feature: "product", status: "approved", developmentGatePassed: true, artifactDisplayable: true, nextStep: "已批准", components: [] });
-  run(`render(${JSON.stringify(graph)})`);
-  const selected = run('document.querySelector("#app").innerHTML');
-  assert.match(selected, /可开始 01/);
-  assert.match(selected, /\/architecture\/product\/artifact.html/);
-  assert.match(selected, /\/architecture\/design\/artifact.html/);
-  assert.doesNotMatch(selected, /请选择一个功能查看可信架构/);
-
+const revision = "a".repeat(64);
+const task = (feature = "demo", localId = "01", overrides = {}) => ({
+  id: `${feature}/${localId}`, localId, feature, title: `${feature} 工单 ${localId}`, phase: "实现",
+  status: "done", dependsOn: [], blockedReason: "", acceptanceCriteria: [],
+  path: `/private/repo/.scratch/${feature}/issues/${localId}.md`, ...overrides,
+});
+const architecture = (overrides = {}) => ({
+  feature: "demo", required: true, mode: "greenfield", reason: "新增接口服务。",
+  status: "approved", workflowStatus: "approved", developmentGatePassed: true, artifactDisplayable: true,
+  nextStep: "架构已批准，可以进入任务计划。",
+  lifecycle: { current: "absent", target: "approved", actual: "missing", baseline: "missing" },
+  hashes: { currentSpecification: revision, receiptSpecification: revision, approvedSpecification: revision },
+  components: [{ id: "api", type: "backend", label: "接口服务" }], ...overrides,
+});
+const snapshot = (overrides = {}) => ({ features: ["demo"], tasks: [], specs: [], architectures: [], frontier: [], edges: [], errors: [], ...overrides });
+const boundTask = (overrides = {}) => task("demo", "01", {
+  architectureRevision: revision, affects: ["api"], affectedComponents: [{ id: "api", type: "backend", label: "接口服务" }],
+  bindingStatus: "valid", architectureDiagnostics: [], ...overrides,
 });
 
-test("dependency diagrams use separate Archify views and retain external dependencies", async () => {
-  const render = await renderer();
-  const tasks = [
-    { id: "alpha/01", localId: "01", feature: "alpha", title: "架构任务", phase: "实现", status: "done", dependsOn: [] },
-    { id: "beta/01", localId: "01", feature: "beta", title: "视图任务", phase: "实现", status: "ready", dependsOn: ["alpha/01"] },
-  ];
-  const graph = { tasks, specs: [{ feature: "alpha", title: "架构功能" }], edges: [{ from: "alpha/01", to: "beta/01" }] };
-  const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
-  assert.equal((html.match(/<iframe /g) || []).length, 2);
-  assert.match(html, /架构功能/);
-  assert.match(html, /<strong>beta<\/strong>/);
-  assert.match(html, /src="\/workflow\/alpha\/artifact\.html\?embed=1&theme=light"/);
-  assert.match(html, /src="\/workflow\/beta\/artifact\.html\?embed=1&theme=light"/);
-  assert.match(html, /data-task="alpha\/01" title="架构任务"/);
-  assert.match(html, /data-task="beta\/01" title="视图任务"/);
-  assert.match(html, /跨功能依赖/);
-  assert.match(html, /beta\/01 ← alpha\/01/);
-  const filtered = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify([tasks[1]])})`);
-  assert.equal((filtered.match(/<iframe /g) || []).length, 1);
-  assert.match(filtered, /beta\/01 ← alpha\/01/);
-  assert.equal(render(`renderGraph(${JSON.stringify(graph)}, [])`), "");
-  render('collapsedGraphFeatures.add("alpha")');
-  const collapsed = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
-  assert.match(collapsed, /class="feature-graph" data-feature="alpha"/);
-  assert.match(collapsed, /class="feature-graph" open data-feature="beta"/);
+test("architecture references stay inside the SDD architecture view and never block product work", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({
+    features: ["design", "product"], tasks: [task("design"), task("product", "01", { status: "ready" })],
+    specs: [{ feature: "design", view: "architecture", title: "架构设计门禁与中文架构阶段卡片", sections: { 目标: "架构参考内容" } }, { feature: "product", title: "实际开发", sections: { 目标: "产品目标" } }],
+    architectures: [architecture({ feature: "design", status: "pending_approval", workflowStatus: "pending_approval", developmentGatePassed: false, lifecycle: { target: "pending_approval" } })],
+    frontier: ["product/01"],
+  }));
+  assert.equal(ui.run("state.feature"), "product");
+  assert.equal(ui.run("counted().total"), 1);
+  assert.equal(ui.run("nextStep().changes.task"), "product/01");
+  assert.match(ui.app.innerHTML, /SDD 开发流程/);
+  assert.match(ui.app.innerHTML, /data-view="architecture"/);
+  assert.doesNotMatch(ui.app.innerHTML, /<iframe|value="design"|架构设计门禁与中文架构阶段卡片/);
+  for (const view of ["specView()", "taskList()", "taskGraph()", "verificationView()"])
+    assert.doesNotMatch(ui.run(view), /design 工单|架构参考内容|架构设计门禁与中文架构阶段卡片|\/workflow\/design\//);
+  assert.match(ui.run("architectureView()"), /\/architecture\/design\/artifact.html/);
+  ui.run("openTask('design/01')");
+  assert.equal(ui.inspector.open, false);
 });
 
-test("feature diagrams expand independently into the isolated Archify artifact", async () => {
-  const render = await renderer();
-  const tasks = [
-    { id: "demo/01", localId: "01", feature: "demo", title: "第一步", phase: "实现", status: "done", dependsOn: [] },
-    { id: "demo/02", localId: "02", feature: "demo", title: "第二步", phase: "实现", status: "ready", dependsOn: ["demo/01"] },
-  ];
-  const graph = { tasks, specs: [], edges: [{ from: "demo/01", to: "demo/02" }] };
-  const html = render(`renderGraph(${JSON.stringify(graph)}, ${JSON.stringify(tasks)})`);
-  assert.match(html, /<details class="feature-graph" open data-feature="demo"><summary>/);
-  assert.match(html, /收起/);
-  assert.match(html, /展开/);
-  assert.match(html, /href="\/workflow\/demo\/artifact\.html\?theme=light"/);
+test("list and collapsible Archify graph share the same task detail across refresh", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({ tasks: [task(), task("demo", "02", { dependsOn: ["demo/01"] })] }), { view: "tasks" });
+  assert.match(ui.run("taskList()"), /data-task="demo\/02"/);
+  ui.run("openTask('demo/02')");
+  const detail = ui.inspector.innerHTML;
+  assert.equal(ui.inspector.open, true);
+  assert.match(detail, /data-dependency="demo\/01"/);
+  assert.match(ui.location.search, /task=demo%2F02/);
+  ui.run("navigate({view:'tasks',mode:'graph'}); openTask('demo/02'); render()");
+  assert.equal(ui.inspector.innerHTML, detail);
+  assert.equal(ui.run("state.mode"), "graph");
+  assert.match(ui.app.innerHTML, /data-task="demo\/02"/);
+  assert.match(ui.app.innerHTML, /<details\b[^>]*>[\s\S]*?<summary\b/);
+  assert.match(ui.app.innerHTML, /src="\/workflow\/demo\/artifact\.html\?embed=1(?:&|&amp;)theme=light"/);
+  assert.match(ui.app.innerHTML, /sandbox="allow-scripts"/);
+  assert.match(ui.app.innerHTML, /referrerpolicy="no-referrer"/);
+  assert.doesNotMatch(ui.app.innerHTML, /allow-same-origin/);
+  ui.inspector.close();
+  assert.equal(ui.run("state.task"), "");
+  assert.doesNotMatch(ui.location.search, /task=/);
+  assert.equal(ui.run("state.mode"), "graph");
+});
+
+test("feature selection keeps repeated IDs separate and branch graphs retain external dependencies", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({
+    features: ["alpha", "beta"],
+    tasks: [task("alpha"), task("beta", "01", { status: "ready", dependsOn: ["alpha/01"] }), task("beta", "02", { status: "ready", dependsOn: ["alpha/01"] })],
+    edges: [{ from: "alpha/01", to: "beta/01" }, { from: "alpha/01", to: "beta/02" }],
+  }), { feature: "beta", view: "tasks", mode: "graph" });
+  assert.match(ui.app.innerHTML, /aria-label="选择功能"/);
+  assert.match(ui.app.innerHTML, /data-task="beta\/01"/);
+  assert.doesNotMatch(ui.app.innerHTML, /data-task="alpha\/01"/);
+  assert.match(ui.app.innerHTML, /\/workflow\/beta\/artifact\.html\?embed=1(?:&|&amp;)theme=light/);
+  assert.match(ui.app.innerHTML, /sandbox="allow-scripts"/);
+  assert.match(ui.app.innerHTML, /referrerpolicy="no-referrer"/);
+  assert.doesNotMatch(ui.app.innerHTML, /allow-same-origin/);
+  assert.match(ui.app.innerHTML, /alpha\/01/);
+  ui.run("openTask('beta/01')");
+  assert.match(ui.inspector.innerHTML, /data-dependency="alpha\/01"/);
+  ui.run("openTask('alpha/01')");
+  assert.match(ui.inspector.innerHTML, /alpha 工单 01/);
+  ui.run("navigate({feature:'alpha'})");
+  assert.match(ui.app.innerHTML, /data-task="alpha\/01"/);
+  assert.doesNotMatch(ui.app.innerHTML, /data-task="beta\/01"/);
+  ui.run("graph.tasks[0].dependsOn = ['alpha/99']; openTask('alpha/01')");
+  assert.match(ui.inspector.innerHTML, /alpha\/99/);
+  assert.match(ui.inspector.innerHTML, /依赖工单缺失，待修正/);
+  assert.doesNotMatch(ui.inspector.innerHTML, /无前置依赖/);
+});
+
+test("spec sections and task text are escaped without losing source content", async () => {
+  const ui = await renderer();
+  const unsafe = '<img src=x onerror="alert(1)"> & 原文';
+  ui.load(snapshot({
+    specs: [{ feature: "demo", title: unsafe, sections: { 背景: "保留已有能力。", 自定义边界: unsafe } }],
+    tasks: [task("demo", "01", { title: unsafe, acceptanceCriteria: [{ text: unsafe, state: "pending" }] })],
+  }));
+  for (const html of [ui.app.innerHTML, ui.run("specView()"), ui.run("taskList()"), ui.run("taskGraph()")]) {
+    assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; 原文/);
+    assert.doesNotMatch(html, /<img /);
+  }
+  assert.match(ui.run("specView()"), /自定义边界/);
+  assert.match(ui.run("specView()"), /保留已有能力/);
+  ui.run("openTask('demo/01')");
+  assert.doesNotMatch(ui.inspector.innerHTML, /<img |\/private\/repo/);
+  assert.match(ui.inspector.innerHTML, /demo\/issues\/01.md/);
+});
+
+test("task completion and the three acceptance states stay independent", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({ tasks: [task("demo", "01", { acceptanceCriteria: [
+    { text: "清单未核对", state: "pending" }, { text: "代码已实现", state: "implemented" }, { text: "结果已验收", state: "accepted" },
+  ] })] }));
+  assert.equal(ui.run("counted().done"), 1);
+  assert.equal(ui.run("counted().pending"), 2);
+  assert.equal(ui.run("counted().accepted"), 1);
+  assert.equal(ui.run("nextStep().changes.view"), "verification");
+  ui.run("openTask('demo/01')");
+  for (const label of ["未勾选", "已实现，待验收", "已验收", "清单未核对", "代码已实现", "结果已验收"])
+    assert.ok(ui.inspector.innerHTML.includes(label));
+  assert.match(ui.inspector.innerHTML, /工单已完成，清单仍未勾选/);
+  assert.doesNotMatch(ui.inspector.innerHTML, /未开发/);
+  const verification = ui.run("verificationView()");
+  assert.match(verification, /1 张工单标记完成，2 项验收仍待核对/);
+  assert.equal((verification.match(/快照未提供/g) || []).length, 3);
+  assert.doesNotMatch(verification, /已交付|测试通过|发布成功/);
+});
+
+test("pending architecture routes the next action to its safe nested view", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({
+    tasks: [task("demo", "01", { status: "ready" })], frontier: ["demo/01"],
+    architectures: [architecture({ status: "pending_approval", workflowStatus: "pending_approval", developmentGatePassed: false, nextStep: "请明确批准当前架构修订。", lifecycle: { current: "absent", target: "pending_approval" } })],
+  }));
+  assert.equal(ui.run("nextStep().changes.view"), "architecture");
+  assert.ok(ui.app.innerHTML.indexOf("<strong>规格与边界</strong>") < ui.app.innerHTML.indexOf("<strong>架构设计</strong>"));
+  assert.ok(ui.app.innerHTML.indexOf("<strong>架构设计</strong>") < ui.app.innerHTML.indexOf("<strong>任务计划</strong>"));
+  assert.doesNotMatch(ui.app.innerHTML, /<iframe/);
+  const html = ui.run("architectureView()");
+  for (const text of ["请明确批准当前架构修订", "绿地规划", "新增接口服务", "批准修订", "接口服务"])
+    assert.ok(html.includes(text));
+  assert.match(html, /src="\/architecture\/demo\/artifact.html\?embed=1&amp;theme=light"/);
   assert.match(html, /sandbox="allow-scripts"/);
   assert.match(html, /referrerpolicy="no-referrer"/);
-  assert.match(html, /ARCHIFY · 任务依赖/);
-});
-
-test("task list separates repeated local numbers into collapsible feature groups", async () => {
-  const render = await renderer();
-  const task = (feature, title) => ({ id: `${feature}/01`, localId: "01", feature, title, phase: "实现", status: "done", path: `/repo/.scratch/${feature}/issues/01.md`, blockedReason: "", acceptanceCriteria: [] });
-  const tasks = [task("alpha", "架构任务"), task("beta", "视图任务")];
-  const graph = { specs: [{ feature: "alpha", title: "架构功能" }] };
-  const html = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
-  assert.equal((html.match(/class="task-feature-group" open/g) || []).length, 2);
-  assert.match(html, /架构功能/);
-  assert.match(html, /<strong>beta<\/strong>/);
-  assert.equal((html.match(/<span class="task-id">01<\/span>/g) || []).length, 2);
-  render('collapsedTaskFeatures.add("alpha")');
-  const collapsed = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
-  assert.match(collapsed, /class="task-feature-group" data-feature="alpha"/);
-  assert.match(collapsed, /class="task-feature-group" open data-feature="beta"/);
-});
-
-test("spec view renders every local section without empty hard-coded fields", async () => {
-  const render = await renderer();
-  const specs = [{
-    title: "Commerce Harness V1",
-    path: "/repo/.scratch/commerce-harness-v1/spec.md",
-    sections: {
-      背景: "保留 DSH 官方能力。",
-      目标: "接入三个只读业务纵切。",
-      边界: "禁止写入、刷新、生成和发布。",
-    },
-  }];
-
-  const html = render(`specContent(${JSON.stringify(specs)})`);
-
-  assert.match(html, /背景/);
-  assert.match(html, /保留 DSH 官方能力/);
-  assert.match(html, /目标/);
-  assert.match(html, /接入三个只读业务纵切/);
-  assert.match(html, /边界/);
-  assert.match(html, /禁止写入、刷新、生成和发布/);
-  assert.doesNotMatch(html, /<dd><\/dd>/);
-});
-
-test("implementation detail keeps every task and checked acceptance criterion visible", async () => {
-  const render = await renderer();
-  const tasks = [
-    { id: "demo/01", localId: "01", feature: "demo", phase: "Foundation", title: "完成基线", status: "done", blockedReason: "", dependsOn: [], acceptanceCriteria: [{ text: "基线已验证", state: "accepted" }] },
-    { id: "demo/02", localId: "02", feature: "demo", phase: "Foundation", title: "读取 Inventory", status: "in_progress", blockedReason: "", dependsOn: ["demo/01"], acceptanceCriteria: [{ text: "Shopify 待读取", state: "pending" }, { text: "BLACKWHALE 已开发", state: "implemented" }] },
-    { id: "demo/03", localId: "03", feature: "demo", phase: "Foundation", title: "建立扩展 seam", status: "ready", blockedReason: "", dependsOn: ["demo/02"], acceptanceCriteria: [{ text: "扩展待实现", state: "pending" }] },
-  ];
-  const graph = { errors: [], frontier: [], specs: [], tasks };
-  const summary = { total: 3, done: 1, in_progress: 1, ready: 1, blocked: 0, progressPercent: 33 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.match(html, /完成基线/);
-  assert.match(html, /读取 Inventory/);
-  assert.match(html, /建立扩展 seam/);
-  assert.match(html, /基线已验证/);
-  assert.match(html, /BLACKWHALE 已开发/);
-  assert.match(html, /Shopify 待读取/);
-  assert.match(html, /aria-label="验收完成：基线已验证"/);
-  assert.match(html, /aria-label="已开发，待验收：BLACKWHALE 已开发"/);
-  assert.match(html, /aria-label="未开发：Shopify 待读取"/);
-  assert.match(html, />☑<\/span>/);
-  assert.match(html, />▲<\/span>/);
-  assert.match(html, />○<\/span>/);
-});
-
-test("pending architecture renders as the second native SDD stage with a safe Chinese overview", async () => {
-  const render = await renderer();
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-  }];
-  const architecture = {
-    feature: "demo",
-    path: "/private/repo/.scratch/demo/architecture",
-    required: true,
-    mode: "greenfield",
-    reason: "新增接口服务与浏览器隔离边界。",
-    status: "pending_approval",
-    developmentGatePassed: false,
-    artifactDisplayable: true,
-    nextStep: "请明确批准当前架构修订。",
-    lifecycle: { current: "absent", target: "pending_approval" },
-    hashes: {
-      currentSpecification: "a".repeat(64),
-      receiptSpecification: "a".repeat(64),
-      approvedSpecification: null,
-      currentArtifact: "b".repeat(64),
-      receiptArtifact: "b".repeat(64),
-    },
-    verification: {
-      receiptSupported: true,
-      receiptValid: true,
-      specificationMatches: true,
-      artifactMatches: true,
-      artifactBytesMatch: true,
-      toolValidation: { errors: 0, warnings: 0 },
-    },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-  const summary = { total: 1, done: 0, in_progress: 0, ready: 1, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.ok(html.indexOf("规格与边界") < html.indexOf("架构设计"));
-  assert.ok(html.indexOf("架构设计") < html.indexOf("任务计划"));
-  assert.match(html, /请明确批准当前架构修订/);
-  assert.match(html, /设计类型/);
-  assert.match(html, /绿地规划/);
-  assert.match(html, /新增接口服务与浏览器隔离边界/);
-  assert.match(html, /代码证据/);
-  assert.match(html, /当前架构/);
-  assert.match(html, /批准修订/);
-  assert.match(html, /接口服务/);
-  assert.match(html, /绑定工单/);
-  assert.match(html, /等待架构门禁/);
-  assert.match(html, /<details class="sdd-card in_progress architecture-card" open>/);
-  assert.match(html, /title="Archify 架构图概览"/);
-  assert.match(html, /sandbox="allow-scripts"/);
-  assert.doesNotMatch(html, /allow-same-origin/);
-  assert.match(html, /href="\/architecture\/demo\/artifact\.html\?theme=light"/);
-  assert.match(html, /src="\/architecture\/demo\/artifact\.html\?embed=1&amp;theme=light"/);
   assert.match(html, /rel="noopener noreferrer"/);
-  assert.doesNotMatch(html, /\/private\/repo/);
+  assert.doesNotMatch(html, /allow-same-origin|\/private\/repo|#focus=/);
 });
 
-test("explicit no-impact architecture decision shows its reason without claiming a broken artifact", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "copy-change",
-    required: false,
-    mode: "existing",
-    reason: "只修改中文文案，不改变组件、接口、数据流或部署。",
-    status: "not_required",
-    developmentGatePassed: true,
-    artifactDisplayable: false,
-    nextStep: "已记录无架构影响，可以进入任务计划。",
-    lifecycle: { current: "recovery_required", target: "not_required" },
-    hashes: {},
-    verification: {},
-    components: [],
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks: [], architectures: [architecture] };
-  const summary = { total: 0, done: 0, in_progress: 0, ready: 0, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, [], ${JSON.stringify(summary)})`);
-
-  assert.match(html, /无需架构设计/);
-  assert.match(html, /只修改中文文案，不改变组件、接口、数据流或部署/);
-  assert.doesNotMatch(html, /架构图不可展示/);
-  assert.doesNotMatch(html, /<iframe/);
-  assert.doesNotMatch(html, /architecture-card" open/);
+test("explicit no-impact and legacy architecture states do not invent approval or a broken artifact", async () => {
+  const ui = await renderer();
+  const graph = snapshot({ tasks: [task("demo", "01", { status: "ready" })], frontier: ["demo/01"] });
+  ui.load(graph);
+  assert.equal(ui.run("nextStep().changes.task"), "demo/01");
+  assert.match(ui.run("architectureView()"), /此旧功能没有架构记录/);
+  assert.doesNotMatch(ui.run("architectureView()"), /<iframe/);
+  graph.architectures = [architecture({ required: false, status: "not_required", workflowStatus: "not_required", artifactDisplayable: false, reason: "只修改中文文案。", lifecycle: { target: "not_required" } })];
+  ui.load(graph);
+  assert.equal(ui.run("nextStep().changes.task"), "demo/01");
+  const html = ui.run("architectureView()");
+  assert.match(html, /无需架构设计|不需要生成架构展示工件/);
+  assert.match(html, /只修改中文文案/);
+  assert.doesNotMatch(html, /架构图不可展示|<iframe/);
 });
 
-test("legacy snapshots without architecture facts keep a compatible five-stage empty state", async () => {
-  const render = await renderer();
-  const tasks = [{
-    id: "legacy/01", localId: "01", feature: "legacy", phase: "维护", title: "修复旧功能", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-  }];
-  const graph = { errors: [], frontier: ["legacy/01"], specs: [], tasks };
-  const summary = { total: 1, done: 0, in_progress: 0, ready: 1, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.equal((html.match(/class="sdd-card /g) || []).length, 5);
-  assert.match(html, /架构设计/);
-  assert.match(html, /兼容无架构记录的旧功能/);
-  assert.match(html, /此旧功能没有架构记录/);
-  assert.doesNotMatch(html, /architecture-card" open/);
-  assert.match(html, /可开始 01/);
-});
-
-test("architecture status controls disclosure without confusing stale and tampered artifacts", async () => {
-  const render = await renderer();
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "in_progress", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-  }];
-  const base = {
-    feature: "demo",
-    required: true,
-    mode: "existing",
-    reason: "新增接口服务。",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    nextStep: "架构已批准，可以进入任务计划。",
-    lifecycle: { current: "recovery_required", target: "approved" },
-    hashes: { currentSpecification: "a".repeat(64), receiptSpecification: "a".repeat(64), approvedSpecification: "a".repeat(64) },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const summary = { total: 1, done: 0, in_progress: 1, ready: 0, blocked: 0, progressPercent: 0 };
-  const graph = (architecture) => ({ errors: [], frontier: [], specs: [], tasks, architectures: [architecture] });
-
-  const approved = render(`sddFlow(${JSON.stringify(graph({ ...base, status: "approved" }))}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-  const stale = render(`sddFlow(${JSON.stringify(graph({ ...base, status: "source_changed", developmentGatePassed: false, nextStep: "请重新交付并批准。", lifecycle: { current: "recovery_required", target: "source_changed" } }))}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-  const tampered = render(`sddFlow(${JSON.stringify(graph({ ...base, status: "artifact_tampered", developmentGatePassed: false, artifactDisplayable: false, nextStep: "请重新交付。", lifecycle: { current: "recovery_required", target: "artifact_tampered" } }))}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.match(approved, /class="sdd-card done architecture-card"/);
-  assert.doesNotMatch(approved, /architecture-card" open/);
-  assert.match(stale, /class="sdd-card blocked architecture-card" open/);
-  assert.match(stale, /最后可信交付图/);
-  assert.match(stale, /当前未批准架构组件/);
-  assert.match(stale, /不属于下面的最后可信交付图/);
-  assert.match(stale, /<iframe/);
-  assert.match(tampered, /class="sdd-card blocked architecture-card" open/);
-  assert.match(tampered, /架构图不可展示/);
-  assert.doesNotMatch(tampered, /<iframe/);
-});
-
-test("approved architecture renders bound tickets and stable component focus links", async () => {
-  const render = await renderer();
-  const revision = "a".repeat(64);
-  const architecture = {
-    feature: "demo",
-    required: true,
-    mode: "greenfield",
-    reason: "新增接口服务。",
-    status: "approved",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    nextStep: "架构已批准，可以进入任务计划。",
-    lifecycle: { current: "absent", target: "approved" },
-    hashes: { currentSpecification: revision, receiptSpecification: revision, approvedSpecification: revision },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-    architectureRevision: revision,
-    affects: ["api"],
-    affectedComponents: [{ id: "api", type: "backend", label: "接口服务" }],
-    bindingStatus: "valid",
-    architectureDiagnostics: [],
-    path: "/repo/.scratch/demo/issues/01-build.md",
-  }];
-  const graph = { errors: [], frontier: ["demo/01"], specs: [], tasks, architectures: [architecture] };
-
-  const architectureHtml = render(`architectureContent(${JSON.stringify([architecture])}, ${JSON.stringify(tasks)})`);
-  const taskHtml = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
-
-  assert.match(architectureHtml, /绑定工单/);
-  assert.match(architectureHtml, /实现接口/);
-  assert.match(architectureHtml, /接口服务/);
-  assert.match(architectureHtml, /href="\/architecture\/demo\/artifact\.html\?theme=light#focus=api"/);
-  assert.match(taskHtml, /架构修订/);
-  assert.match(taskHtml, new RegExp(revision));
-  assert.match(taskHtml, /影响组件/);
-  assert.match(taskHtml, /接口服务/);
-  assert.match(taskHtml, /#focus=api/);
-});
-
-test("component focus links preserve long labels and stable IDs with public wrapping styles", async () => {
-  const render = await renderer();
-  const id = "component-with-an-extremely-long-stable-identifier-that-must-wrap";
-  const label = "负责跨区域异步任务编排与失败恢复的超长中文组件名称";
-  const task = {
-    id: "demo/01", feature: "demo", architectureRevision: "a".repeat(64), affects: [id],
-    affectedComponents: [{ id, type: "backend", label }], bindingStatus: "valid", architectureDiagnostics: [],
-  };
-  const architecture = {
-    feature: "demo",
-    status: "approved",
-    workflowStatus: "approved",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    lifecycle: { target: "approved" },
-  };
-
-  const html = render(`taskAffectedComponents(${JSON.stringify(task)}, ${JSON.stringify(architecture)})`);
-  const styles = await readFile(new URL("../src/public/app.css", import.meta.url), "utf8");
-
-  assert.match(html, new RegExp(label));
-  assert.match(html, new RegExp(id));
-  assert.match(html, new RegExp(`#focus=${id}`));
-  assert.match(styles, /\.architecture-affects-values a \{[^}]*max-width: 100%;[^}]*min-width: 0;[^}]*flex-wrap: wrap;[^}]*overflow-wrap: anywhere;/s);
-  assert.match(styles, /\.architecture-affects-values a strong \{[^}]*color: var\(--text\);/s);
-  assert.match(styles, /\.architecture-affects-values small \{[^}]*color: var\(--text-secondary\);/s);
-});
-
-test("component focus requires an approved known architecture with a passing development gate", async () => {
-  const render = await renderer();
-  const task = {
-    id: "demo/01",
-    feature: "demo",
-    affects: ["api"],
-    affectedComponents: [{ id: "api", type: "backend", label: "接口服务" }],
-    bindingStatus: "valid",
-    architectureDiagnostics: [],
-  };
-  const approved = {
-    feature: "demo",
-    status: "approved",
-    workflowStatus: "approved",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    lifecycle: { target: "approved" },
-  };
-  const rejected = [
-    { ...approved, status: "source_changed" },
-    { ...approved, workflowStatus: "future_closure_state" },
-    { ...approved, workflowStatus: "" },
-    { ...approved, developmentGatePassed: false },
-    { ...approved, lifecycle: { target: "future_target_state" } },
+test("stale, tampered and unknown architecture states fail closed without confusing their artifacts", async () => {
+  const ui = await renderer();
+  const variants = [
+    architecture({ status: "source_changed", workflowStatus: "source_changed", developmentGatePassed: false, lifecycle: { target: "source_changed" } }),
+    architecture({ status: "artifact_tampered", workflowStatus: "artifact_tampered", developmentGatePassed: false, artifactDisplayable: false, lifecycle: { target: "artifact_tampered" } }),
+    architecture({ status: "future_state" }),
+    architecture({ workflowStatus: "future_closure_state" }),
+    architecture({ workflowStatus: "" }),
+    architecture({ lifecycle: { target: "future_target_state" } }),
+    architecture({ lifecycle: { target: "" } }),
   ];
-
-  assert.match(render(`taskAffectedComponents(${JSON.stringify(task)}, ${JSON.stringify(approved)})`), /#focus=api/);
-  for (const architecture of rejected) {
-    assert.doesNotMatch(render(`taskAffectedComponents(${JSON.stringify(task)}, ${JSON.stringify(architecture)})`), /#focus=/);
-  }
-});
-
-test("source-changed bindings show only their original component IDs without focus links", async () => {
-  const render = await renderer();
-  const revision = "a".repeat(64);
-  const architecture = {
-    feature: "demo",
-    required: true,
-    mode: "existing",
-    reason: "架构源已修改。",
-    status: "source_changed",
-    developmentGatePassed: false,
-    artifactDisplayable: true,
-    nextStep: "请重新交付并批准。",
-    lifecycle: { current: "recovery_required", target: "source_changed" },
-    hashes: { currentSpecification: "b".repeat(64), receiptSpecification: revision, approvedSpecification: revision },
-    components: [{ id: "worker", type: "backend", label: "新任务执行器" }],
-  };
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现旧接口", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-    architectureRevision: revision,
-    affects: ["api"],
-    affectedComponents: [],
-    bindingStatus: "unverifiable",
-    architectureDiagnostics: [{ code: "architecture_approval_unverifiable", message: "批准修订不可验证。", path: "/repo/.scratch/demo/issues/01-build.md" }],
-    path: "/repo/.scratch/demo/issues/01-build.md",
-  }];
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-
-  const architectureHtml = render(`architectureContent(${JSON.stringify([architecture])}, ${JSON.stringify(tasks)})`);
-  const taskHtml = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
-
-  assert.match(architectureHtml, /实现旧接口/);
-  assert.match(architectureHtml, /原组件 ID/);
-  assert.match(architectureHtml, /<code>api<\/code>/);
-  assert.doesNotMatch(architectureHtml, /#focus=/);
-  assert.match(taskHtml, /原组件 ID/);
-  assert.match(taskHtml, /<code>api<\/code>/);
-  assert.doesNotMatch(taskHtml, /#focus=/);
-});
-
-test("invalid architecture bindings stay visible with Chinese ticket diagnostics when metadata is missing", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "demo",
-    required: true,
-    mode: "greenfield",
-    reason: "新增接口服务。",
-    status: "approved",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    nextStep: "架构已批准，可以进入任务计划。",
-    lifecycle: { current: "absent", target: "approved" },
-    hashes: { currentSpecification: "a".repeat(64), receiptSpecification: "a".repeat(64), approvedSpecification: "a".repeat(64) },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-    architectureRevision: null,
-    affects: [],
-    affectedComponents: [],
-    bindingStatus: "invalid",
-    architectureDiagnostics: [
-      { code: "missing_architecture_revision", message: "需要架构设计的工单必须填写 architecture_revision。", path: "/repo/.scratch/demo/issues/01-build.md" },
-      { code: "missing_architecture_affects", message: "需要架构设计的工单必须填写非空 affects 列表。", path: "/repo/.scratch/demo/issues/01-build.md" },
-    ],
-    path: "/repo/.scratch/demo/issues/01-build.md",
-  }];
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-
-  const architectureHtml = render(`architectureContent(${JSON.stringify([architecture])}, ${JSON.stringify(tasks)})`);
-  const taskHtml = render(`taskList(${JSON.stringify(tasks)}, ${JSON.stringify(graph)})`);
-
-  for (const html of [architectureHtml, taskHtml]) {
-    assert.match(html, /实现接口/);
-    assert.match(html, /绑定有误/);
-    assert.match(html, /必须填写 architecture_revision/);
-    assert.match(html, /必须填写非空 affects 列表/);
-  }
-  assert.doesNotMatch(architectureHtml, /尚无架构绑定工单/);
-});
-
-test("ticket architecture diagnostics block the plan summary and remain visible in task rows", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "demo",
-    required: true,
-    mode: "greenfield",
-    reason: "新增接口服务。",
-    status: "approved",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    nextStep: "架构已批准，可以进入任务计划。",
-    lifecycle: { current: "absent", target: "approved" },
-    hashes: { currentSpecification: "a".repeat(64), receiptSpecification: "a".repeat(64), approvedSpecification: "a".repeat(64) },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "ready", blockedReason: "", dependsOn: [], acceptanceCriteria: [],
-    architectureRevision: null,
-    affects: [],
-    affectedComponents: [],
-    bindingStatus: "invalid",
-    architectureDiagnostics: [{ code: "missing_architecture_revision", message: "需要架构设计的工单必须填写 architecture_revision。", path: "/repo/.scratch/demo/issues/01-build.md" }],
-    path: "/repo/.scratch/demo/issues/01-build.md",
-  }];
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-  const summary = { total: 1, done: 0, in_progress: 0, ready: 1, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.match(html, /先修正 01 的架构绑定诊断/);
-  assert.match(html, /<details class="sdd-card blocked"><summary>[\s\S]*?<strong>任务计划<\/strong>/);
-  assert.match(html, /需要架构设计的工单必须填写 architecture_revision/);
-  assert.doesNotMatch(html, /依赖已校验/);
-});
-
-test("actual architecture review opens the A-stage card without inventing delivery completion", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "demo",
-    required: true,
-    mode: "greenfield",
-    reason: "规划架构。",
-    status: "approved",
-    workflowStatus: "actual_pending_review",
-    developmentGatePassed: true,
-    artifactDisplayable: true,
-    nextStep: "复核规划与实际差异，再决定是否提升长期基线。",
-    lifecycle: { current: "absent", target: "approved", actual: "pending_review", baseline: "missing" },
-    hashes: { currentSpecification: "a".repeat(64), receiptSpecification: "a".repeat(64), approvedSpecification: "a".repeat(64) },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-    implementationComplete: true,
-    deliveryVerified: true,
-    toolValidationPassed: true,
-    userApproved: false,
-    actual: {
-      reason: "实现完成后的总体复核说明。",
-      differences: [{ kind: "changed", componentId: "api", summary: "接口已落地", rationale: "与实现保持一致" }],
-    },
-    baseline: { status: "missing", sourceFeature: "" },
-  };
-  const tasks = [{ id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "done", blockedReason: "", dependsOn: [], acceptanceCriteria: [] }];
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-  const summary = { total: 1, done: 1, in_progress: 0, ready: 0, blocked: 0, progressPercent: 100 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify(tasks)}, ${JSON.stringify(summary)})`);
-
-  assert.match(html, /class="sdd-card in_progress architecture-card" open/);
-  assert.match(html, /实际架构待复核/);
-  assert.match(html, /当前架构/);
-  assert.match(html, /目标架构/);
-  assert.match(html, /实际架构/);
-  assert.match(html, /长期基线/);
-  assert.match(html, /实现完成/);
-  assert.match(html, /交付核验/);
-  assert.match(html, /工具校验/);
-  assert.match(html, /用户批准/);
-  assert.match(html, /接口已落地/);
-  assert.match(html, /与实现保持一致/);
-  assert.match(html, /复核规划与实际差异/);
-  assert.doesNotMatch(html, /已交付/);
-  assert.doesNotMatch(html, /批准实际架构|复制到基线/);
-});
-
-test("architecture review prose and warnings wrap unbroken text inside the narrow card", async () => {
-  const styles = await readFile(new URL("../src/public/app.css", import.meta.url), "utf8");
-
-  assert.match(styles, /\.architecture-section > p[^{]*\{[^}]*overflow-wrap: anywhere;/s);
-  assert.match(styles, /\.architecture-warning[^{]*\{[^}]*overflow-wrap: anywhere;/s);
-});
-
-test("architecture lifecycle labels use a text color with at least 4.5 to 1 contrast", async () => {
-  const styles = await readFile(new URL("../src/public/app.css", import.meta.url), "utf8");
-  const color = styles.match(/--text-secondary:\s*(#[0-9a-f]{6})/i)?.[1];
-  const background = styles.match(/--surface:\s*(#[0-9a-f]{6})/i)?.[1];
-  const luminance = (hex) => {
-    const channels = hex.slice(1).match(/.{2}/g).map((channel) => Number.parseInt(channel, 16) / 255)
-      .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-    return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
-  };
-
-  assert.match(styles, /\.architecture-lifecycle dt\s*\{[^}]*color: var\(--text-secondary\);/s);
-  assert.ok((luminance(background) + 0.05) / (luminance(color) + 0.05) >= 4.5);
-});
-
-test("actual architecture review preserves approved planned component focus links", async () => {
-  const render = await renderer();
-  const revision = "a".repeat(64);
-  const architecture = {
-    feature: "demo", status: "approved", workflowStatus: "actual_pending_review",
-    artifactDisplayable: true, developmentGatePassed: true, nextStep: "复核实际架构。",
-    lifecycle: { current: "absent", target: "approved", actual: "pending_review", baseline: "missing" },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const tasks = [{
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "in_progress",
-    blockedReason: "", dependsOn: [], acceptanceCriteria: [], architectureRevision: revision, affects: ["api"],
-    affectedComponents: [{ id: "api", type: "backend", label: "接口服务" }], bindingStatus: "valid", architectureDiagnostics: [],
-  }];
-  const graph = { errors: [], frontier: [], specs: [], tasks, architectures: [architecture] };
-
-  const detail = render(`taskArchitectureDetail(${JSON.stringify(tasks[0])}, ${JSON.stringify(graph)})`);
-
-  assert.match(detail, /#focus=api/);
-});
-
-test("source-changed active work shows a safe checkpoint without component focus links", async () => {
-  const render = await renderer();
-  const revision = "a".repeat(64);
-  const architecture = {
-    feature: "demo", status: "source_changed", workflowStatus: "source_changed",
-    artifactDisplayable: true, developmentGatePassed: false, nextStep: "重新交付并批准规划架构。",
-    lifecycle: { current: "absent", target: "source_changed", actual: "missing", baseline: "missing" },
-    components: [{ id: "api", type: "backend", label: "接口服务" }],
-  };
-  const task = {
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "in_progress",
-    blockedReason: "", dependsOn: [], acceptanceCriteria: [], architectureRevision: revision, affects: ["api"],
-    affectedComponents: [], bindingStatus: "unverifiable", architectureDiagnostics: [],
-    architectureAction: { state: "pause_at_safe_checkpoint", message: "架构批准已过期；完成当前安全检查点后暂停，重新批准后继续。" },
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks: [task], architectures: [architecture] };
-  const summary = { total: 1, done: 0, in_progress: 1, ready: 0, blocked: 0, progressPercent: 0 };
-
-  const flow = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify([task])}, ${JSON.stringify(summary)})`);
-  const detail = render(`taskArchitectureDetail(${JSON.stringify(task)}, ${JSON.stringify(graph)})`);
-
-  assert.match(flow, /安全检查点后暂停/);
-  assert.match(detail, /安全检查点后暂停/);
-  assert.doesNotMatch(flow, /#focus=/);
-  assert.doesNotMatch(detail, /#focus=/);
-});
-
-test("unknown planning status fails closed and foreign baseline ownership stays explicit", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "demo", status: "future_state", workflowStatus: "baseline_pending",
-    developmentGatePassed: true, artifactDisplayable: false, nextStep: "未知。",
-    lifecycle: { current: "unknown", target: "future_state", actual: "approved", baseline: "foreign_feature" },
-    actual: { differences: [] }, baseline: { status: "foreign_feature", sourceFeature: "other-feature" }, components: [],
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks: [], architectures: [architecture] };
-  const summary = { total: 0, done: 0, in_progress: 0, ready: 0, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, [], ${JSON.stringify(summary)})`);
-
-  assert.match(html, /未知架构状态/);
-  assert.match(html, /当前项目基线来自 other-feature/);
-  assert.match(html, /等待架构门禁/);
-  assert.doesNotMatch(html, /展示工件被篡改/);
-});
-
-test("unknown architecture workflow and target states stay blocked and open", async () => {
-  const render = await renderer();
-  const task = {
-    id: "demo/01", localId: "01", feature: "demo", phase: "实现", title: "实现接口", status: "ready",
-    blockedReason: "", dependsOn: [], acceptanceCriteria: [], affects: ["api"],
-    affectedComponents: [{ id: "api", type: "backend", label: "接口服务" }], bindingStatus: "valid", architectureDiagnostics: [],
-  };
-  const approved = {
-    feature: "demo", required: true, mode: "greenfield", reason: "新增接口服务。",
-    status: "approved", workflowStatus: "approved", developmentGatePassed: true, artifactDisplayable: true,
-    nextStep: "架构状态需要确认。", lifecycle: { current: "absent", target: "approved", actual: "missing", baseline: "missing" },
-    components: [{ id: "api", type: "backend", label: "接口服务" }], hashes: {},
-  };
-  const unknownStates = [
-    { ...approved, workflowStatus: "future_closure_state" },
-    { ...approved, workflowStatus: "" },
-    { ...approved, lifecycle: { ...approved.lifecycle, target: "future_target_state" } },
-    { ...approved, lifecycle: { ...approved.lifecycle, target: "" } },
-  ];
-  const summary = { total: 1, done: 0, in_progress: 0, ready: 1, blocked: 0, progressPercent: 0 };
-
-  for (const architecture of unknownStates) {
-    const graph = { errors: [], frontier: ["demo/01"], specs: [], tasks: [task], architectures: [architecture] };
-    const html = render(`sddFlow(${JSON.stringify(graph)}, ${JSON.stringify([task])}, ${JSON.stringify(summary)})`);
-    assert.match(html, /class="sdd-card blocked architecture-card" open/);
-    assert.match(html, /未知架构状态（已锁定）/);
-    assert.match(html, /等待架构门禁/);
+  for (const a of variants) {
+    ui.load(snapshot({ tasks: [boundTask({ status: "ready" })], frontier: ["demo/01"], architectures: [a] }));
+    assert.equal(ui.run("nextStep().changes.view"), "architecture");
+    const html = ui.run("architectureView()");
     assert.doesNotMatch(html, /#focus=/);
+    if (a.status === "source_changed") {
+      assert.match(html, /最后可信交付图/);
+      assert.match(html, /当前未批准架构组件/);
+      assert.match(html, /<iframe/);
+    } else if (a.status === "artifact_tampered") {
+      assert.match(html, /架构图不可展示/);
+      assert.doesNotMatch(html, /<iframe/);
+    } else {
+      assert.match(html, /未知架构状态/);
+      assert.doesNotMatch(html, /展示工件被篡改/);
+    }
   }
 });
 
-test("multi-feature guidance counts unknown architecture states as blocked gates", async () => {
-  const render = await renderer();
-  const approved = {
-    feature: "known", status: "approved", workflowStatus: "approved", developmentGatePassed: true,
-    artifactDisplayable: true, nextStep: "可以开始。", lifecycle: { current: "absent", target: "approved" }, components: [], hashes: {},
-  };
-  const unknown = {
-    ...approved,
-    feature: "unknown",
-    workflowStatus: "future_closure_state",
-    nextStep: "需要确认。",
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks: [], architectures: [approved, unknown] };
-  const summary = { total: 0, done: 0, in_progress: 0, ready: 0, blocked: 0, progressPercent: 0 };
-
-  const html = render(`sddFlow(${JSON.stringify(graph)}, [], ${JSON.stringify(summary)})`);
-
-  assert.match(html, /先处理 1 个功能的架构门禁/);
-  assert.doesNotMatch(html, /先处理 0 个功能/);
+test("component focus and binding diagnostics appear only in the architecture view", async () => {
+  const ui = await renderer();
+  const component = { id: "api-with-a-long-stable-component-identifier", type: "backend", label: "负责跨区域异步任务编排与失败恢复的超长中文组件名称" };
+  const ticket = boundTask({ status: "ready", affects: [component.id], affectedComponents: [component] });
+  const graph = snapshot({ tasks: [ticket], frontier: [ticket.id], architectures: [architecture({ components: [component] })] });
+  ui.load(graph);
+  const html = ui.run("architectureView()");
+  assert.match(html, new RegExp(`#focus=${component.id}`));
+  assert.ok(html.includes(component.label));
+  assert.match(html, /绑定有效/);
+  for (const expression of ["taskList()", "taskGraph()", "specView()", "verificationView()"])
+    assert.doesNotMatch(ui.run(expression), /#focus=|影响组件|修订绑定/);
+  ui.run("openTask('demo/01')");
+  assert.doesNotMatch(ui.inspector.innerHTML, /#focus=|影响组件|修订绑定/);
+  ticket.bindingStatus = "invalid";
+  ticket.architectureDiagnostics = [{ message: "需要填写 architecture_revision 与非空 affects。" }];
+  ui.load(graph);
+  assert.equal(ui.run("nextStep().changes.view"), "architecture");
+  assert.match(ui.run("architectureView()"), /绑定有误/);
+  assert.match(ui.run("architectureView()"), /需要填写 architecture_revision 与非空 affects/);
+  assert.doesNotMatch(ui.run("architectureView()"), /#focus=/);
+  ticket.bindingStatus = "unverifiable";
+  ui.load(graph);
+  assert.match(ui.run("architectureView()"), /原组件 ID/);
+  assert.doesNotMatch(ui.run("architectureView()"), /#focus=/);
 });
 
-test("existing-system current baseline recovery is a blocked open architecture gate", async () => {
-  const render = await renderer();
-  const architecture = {
-    feature: "demo", status: "approved", workflowStatus: "current_baseline_required",
-    developmentGatePassed: false, artifactDisplayable: true,
-    nextStep: "请先恢复并确认当前基线。",
-    lifecycle: { current: "recovery_required", target: "approved", actual: "missing", baseline: "from_other_feature" },
-    actual: { differences: [] }, baseline: { status: "from_other_feature", sourceFeature: "old-feature" }, components: [],
-  };
-  const graph = { errors: [], frontier: [], specs: [], tasks: [], architectures: [architecture] };
-  const summary = { total: 0, done: 0, in_progress: 0, ready: 0, blocked: 0, progressPercent: 0 };
+test("actual review and foreign baselines retain their evidence without claiming delivery", async () => {
+  const ui = await renderer();
+  const a = architecture({
+    workflowStatus: "actual_pending_review", nextStep: "复核规划与实际差异。",
+    lifecycle: { current: "absent", target: "approved", actual: "pending_review", baseline: "foreign_feature" },
+    implementationComplete: true, deliveryVerified: true, toolValidationPassed: true, userApproved: false,
+    actual: { reason: "实现完成后的总体复核说明。", differences: [{ kind: "changed", componentId: "api", summary: "接口已落地", rationale: "与实现保持一致" }] },
+    baseline: { status: "foreign_feature", sourceFeature: "other-feature" },
+  });
+  ui.load(snapshot({ tasks: [boundTask()], architectures: [a] }));
+  const html = ui.run("architectureView()");
+  for (const text of ["实际架构待复核", "当前架构", "目标架构", "实际架构", "长期基线", "交付核验", "工具校验", "用户批准", "接口已落地", "与实现保持一致", "当前项目基线来自 other-feature"])
+    assert.ok(html.includes(text));
+  assert.match(html, /#focus=api/);
+  assert.doesNotMatch(html, /批准实际架构|复制到基线|已交付/);
+  assert.doesNotMatch(ui.run("verificationView()"), /已交付/);
+  a.workflowStatus = "current_baseline_required";
+  a.developmentGatePassed = false;
+  a.nextStep = "请先恢复并确认当前基线。";
+  ui.load(snapshot({ tasks: [boundTask({ status: "in_progress", architectureAction: { state: "pause_at_safe_checkpoint", message: "完成当前安全检查点后暂停。" } })], architectures: [a] }));
+  assert.equal(ui.run("nextStep().changes.view"), "architecture");
+  assert.match(ui.run("architectureView()"), /当前基线待确认/);
+  assert.doesNotMatch(ui.run("architectureView()"), /#focus=/);
+});
 
-  const html = render(`sddFlow(${JSON.stringify(graph)}, [], ${JSON.stringify(summary)})`);
-
-  assert.match(html, /class="sdd-card blocked architecture-card" open/);
-  assert.match(html, /当前基线待确认/);
-  assert.match(html, /请先恢复并确认当前基线/);
-  assert.match(html, /当前项目基线来自 old-feature/);
+test("empty states and snapshot refresh remain usable without fabricated tasks", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({ features: [] }), { feature: "missing", view: "not-a-view" });
+  assert.equal(ui.run("state.feature"), "");
+  assert.equal(ui.run("state.view"), "overview");
+  assert.equal(ui.run("nextStep().changes.view"), "spec");
+  assert.match(ui.run("specView()"), /尚无规格记录/);
+  assert.match(ui.run("taskList()"), /没有工单/);
+  assert.doesNotMatch(ui.run("taskGraph()"), /<iframe|\/workflow\//);
+  ui.run("graph = { ...graph, features:['demo'], tasks:[], errors:[{message:'<script>不可信诊断</script>'}] }; render()");
+  assert.match(ui.app.innerHTML, /&lt;script&gt;不可信诊断&lt;\/script&gt;/);
+  assert.doesNotMatch(ui.app.innerHTML, /<script>/);
+  const next = snapshot({ tasks: [task()] });
+  await ui.run(`fetch = async () => ({ok:true,json:async()=>(${JSON.stringify(next)})}); refresh()`);
+  assert.equal(ui.run("counted().total"), 1);
+  assert.match(ui.app.innerHTML, /SDD 开发流程/);
 });

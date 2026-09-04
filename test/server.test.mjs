@@ -60,26 +60,15 @@ test("local server serves the task view and its public snapshot", async (t) => {
   const [page, snapshot] = await Promise.all([fetch(url), fetch(`${url}api/snapshot`)]);
 
   assert.match(page.headers.get("content-type"), /text\/html/);
-  assert.match(await page.text(), /开发任务视图/);
+  assert.match(await page.text(), /<title>Matt · SDD 开发工作台<\/title>/);
   const [styles, appScript] = await Promise.all([fetch(`${url}app.css`), fetch(`${url}app.js`)]);
   assert.match(styles.headers.get("content-type"), /text\/css/);
   assert.match(appScript.headers.get("content-type"), /javascript/);
   const script = await appScript.text();
   assert.match(script, /EventSource/);
-  assert.match(script, /SDD 开发流程/);
-  assert.match(script, /规格与边界/);
-  assert.match(script, /任务计划/);
-  assert.match(script, /验证与交付/);
-  assert.match(script, /实施明细/);
-  assert.match(script, /spec\.md/);
-  assert.match(script, /下一步/);
-  assert.match(script, /总体进度/);
-  assert.match(script, /segmented-progress/);
-  assert.match(await styles.text(), /--primary: #0077fa/);
-  assert.doesNotMatch(script, /执行洞察/);
-  assert.doesNotMatch(script, /任务状态分布/);
-  assert.doesNotMatch(script, /阶段完成情况/);
-  assert.match(script, /任务计划/);
+  assert.match(script, /api\/snapshot/);
+  assert.match(script, /showModal/);
+  assert.ok((await styles.text()).length > 0);
   assert.equal((await fetch(`${url}favicon.ico`)).status, 204);
   assert.deepEqual((await snapshot.json()).summary, {
     total: 1,
