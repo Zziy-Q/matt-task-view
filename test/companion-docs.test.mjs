@@ -65,9 +65,10 @@ test("companion documents safe implementation closure without giving the task vi
 test("README gives a short architecture-first local flow without duplicating the JSON schema", async () => {
   const readme = await text("README.md");
 
-  const spec = readme.indexOf("正式规格");
-  const architecture = readme.indexOf("架构影响");
-  const tickets = readme.indexOf("to-tickets");
+  const flow = readme.split("## 本地开发流程\n")[1]?.split("\n## ")[0] ?? "";
+  const spec = flow.indexOf("正式规格");
+  const architecture = flow.indexOf("架构影响");
+  const tickets = flow.indexOf("to-tickets");
   assert.ok(spec >= 0 && architecture > spec && tickets > architecture);
   assert.match(readme, /greenfield[^\n]+规划架构 v0/);
   assert.match(readme, /existing[^\n]+当前基线/);

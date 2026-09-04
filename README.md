@@ -1,4 +1,6 @@
-# Matt Task View
+# Matt Dev View
+
+Matt Pocock Skills 负责规划与实施，Matt Dev View 负责只读展示开发过程。
 
 本地 Markdown 票据的只读 SDD 开发工作台：读取 `.scratch/<feature>/issues/`，在 `127.0.0.1` 展示下一步、实际开发工单、任务依赖与验收记录。
 
@@ -20,7 +22,7 @@
 | --- | --- |
 | [Matt Pocock Skills](https://github.com/mattpocock/skills) | 开发流程：通过 `ask-matt` 路由，按需完成规格、`to-tickets` 拆票、`implement` 实施及评审 |
 | 本仓库的 [companion skill](skills/matt-task-view/SKILL.md) | 本地适配：约定票据字段、架构记录和 Codex 右侧视图的启动时机 |
-| Matt Task View 服务与网页 | 只读展示：解析文件、校验依赖、显示 SDD 阶段与验收记录，并随文件变化刷新 |
+| Matt Dev View 服务与网页 | 只读展示：解析文件、校验依赖、显示 SDD 阶段与验收记录，并随文件变化刷新 |
 
 这是独立的配套项目。架构门禁、Archify 集成、票据 frontmatter 与自动打开侧栏属于本项目的适配约定，并非安装上游 Skills 后自动具备的功能。
 

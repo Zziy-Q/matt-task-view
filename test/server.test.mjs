@@ -60,7 +60,7 @@ test("local server serves the task view and its public snapshot", async (t) => {
   const [page, snapshot] = await Promise.all([fetch(url), fetch(`${url}api/snapshot`)]);
 
   assert.match(page.headers.get("content-type"), /text\/html/);
-  assert.match(await page.text(), /<title>Matt · SDD 开发工作台<\/title>/);
+  assert.match(await page.text(), /<title>Matt Dev View · 本地 SDD 开发视图<\/title>/);
   const [styles, appScript] = await Promise.all([fetch(`${url}app.css`), fetch(`${url}app.js`)]);
   assert.match(styles.headers.get("content-type"), /text\/css/);
   assert.match(appScript.headers.get("content-type"), /javascript/);

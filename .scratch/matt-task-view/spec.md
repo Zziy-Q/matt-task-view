@@ -1,4 +1,4 @@
-# Matt Task View
+# Matt Dev View
 
 **Status:** ready-for-agent
 
@@ -73,6 +73,6 @@ Matt Pocock Skills 会先把一个功能拆成可执行的本地 Markdown 票据
 
 ## Further Notes
 
-- 本项目名称为 `matt-task-view`，但用户界面名称使用“开发任务视图”。
+- 用户界面名称使用“Matt Dev View”，中文副标题使用“SDD 开发视图”；工具和 companion skill 名称保持 `matt-task-view`。
 - 可视化是票据的派生读模型；票据文件始终是唯一事实来源。
 - 首发版本应优先保持一个进程、一个输入目录约定、一个 JSON 快照契约。未来接入 GitLab/GitHub 时新增 adapter，不改变图与 UI 的消费契约。

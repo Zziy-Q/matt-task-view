@@ -1,11 +1,11 @@
 ---
 name: matt-task-view
-description: "Matt local development companion: after a formal spec, enforce the architecture-impact gate before /to-tickets; after tickets, open the read-only dependency view in the Codex right sidebar before /implement; also use when the user says '启动开发任务视图'."
+description: "Matt Dev View companion for Matt Pocock Skills: after a formal spec, enforce the architecture-impact gate before /to-tickets; after tickets, open the read-only dependency view in the Codex right sidebar before /implement; also use when the user says '启动开发任务视图'."
 ---
 
-# Matt Task View
+# Matt Dev View
 
-本技能连接 Matt 本地 Markdown 开发流与只读任务视图。票据、架构四件套和项目基线始终是事实来源；任务视图只读取、校验和展示，绝不代替用户批准、复制基线或修改票据。
+Matt Pocock Skills 负责规划与实施，Matt Dev View 负责只读展示开发过程。本技能连接本地 Markdown 开发流与视图。票据、架构四件套和项目基线始终是事实来源；任务视图只读取、校验和展示，绝不代替用户批准、复制基线或修改票据。
 
 ## 配套前提
 
