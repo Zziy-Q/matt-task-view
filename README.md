@@ -93,7 +93,7 @@ matt-task-view serve --port 0
 已在 macOS、Node.js `v24.13.1` 验证。建议使用 Node.js 24；其他系统与版本尚未在本次发布中验证。
 
 ```sh
-git clone https://github.com/951655087/matt-task-view.git
+git clone https://github.com/Zziy-Q/matt-task-view.git
 cd matt-task-view
 node src/cli.mjs serve --port 0
 ```
