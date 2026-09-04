@@ -5,6 +5,8 @@ const params = new URLSearchParams(location.search);
 let state = { view: params.get('view') || 'overview', mode: params.get('mode') || 'list', feature: params.get('feature') || '', status: params.get('status') || 'all', task: params.get('task') || '' };
 let graph;
 let connection = 'connecting';
+let snapshotFailed = false;
+const connectionLabel = () => connection==='offline' ? '连接中断，重连中' : snapshotFailed ? '快照读取失败，显示上次结果' : '本地快照';
 let refreshId = 0;
 const collapsedGraphFeatures = new Set();
 const statusNames = {done:'已完成',in_progress:'进行中',ready:'待开始',blocked:'受阻'};
@@ -246,7 +248,7 @@ function render(){
  if(!['list','graph'].includes(state.mode))state.mode='list';
  if(!['all',...Object.keys(statusNames)].includes(state.status))state.status='all';
  const content=({overview, tasks:taskView, spec:specView, architecture:architectureView, verification:verificationView})[state.view]();
- app.innerHTML=`<div class="shell"><header class="topbar"><div class="brand"><span class="brand-mark">${icon('mark')}</span>Matt Dev View <span class="workspace-label">SDD 开发视图</span></div><span class="connection ${connection==='live'?'live':''}" id="connection"><i></i>${connection==='offline'?'连接中断，重连中':'本地快照'}<span class="optional"> · 只读</span></span></header><div class="project"><div><h1>${escape(spec()?.title || '开发工作台')}</h1><p class="mono">${escape(state.feature || '无开发工单')}</p></div>${features().length>1?`<select aria-label="选择功能" id="feature">${features().map(f=>`<option value="${escape(f)}" ${f===state.feature?'selected':''}>${escape(f)}</option>`).join('')}</select>`:''}</div><nav class="nav" aria-label="工作台视图"><button aria-current="${state.view!=='tasks'}" data-view="overview">SDD 概览</button><button aria-current="${state.view==='tasks'}" data-view="tasks">开发工单 <span class="count">${tasks().length}</span></button></nav><main class="content"><div class="view">${graph.errors.length?`<p class="error">${graph.errors.map(e=>escape(e.message)).join('<br>')}</p>`:''}${content}</div></main><footer class="footer"><span>本地 Markdown · 自动读取</span><span>开发工作台 · 只读</span></footer></div>`;
+ app.innerHTML=`<div class="shell"><header class="topbar"><div class="brand"><span class="brand-mark">${icon('mark')}</span>Matt Dev View <span class="workspace-label">SDD 开发视图</span></div><span class="connection ${connection==='live'&&!snapshotFailed?'live':''}" id="connection"><i></i>${connectionLabel()}<span class="optional"> · 只读</span></span></header><div class="project"><div><h1>${escape(spec()?.title || '开发工作台')}</h1><p class="mono">${escape(state.feature || '无开发工单')}</p></div>${features().length>1?`<select aria-label="选择功能" id="feature">${features().map(f=>`<option value="${escape(f)}" ${f===state.feature?'selected':''}>${escape(f)}</option>`).join('')}</select>`:''}</div><nav class="nav" aria-label="工作台视图"><button aria-current="${state.view!=='tasks'}" data-view="overview">SDD 概览</button><button aria-current="${state.view==='tasks'}" data-view="tasks">开发工单 <span class="count">${tasks().length}</span></button></nav><main class="content"><div class="view">${graph.errors.length?`<p class="error">${graph.errors.map(e=>escape(e.message)).join('<br>')}</p>`:''}${content}</div></main><footer class="footer"><span>本地 Markdown · 自动读取</span><span>开发工作台 · 只读</span></footer></div>`;
  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigate({view:b.dataset.view}));
  document.querySelector('[data-next]')?.addEventListener('click',()=>{const c=nextStep().changes;navigate(c);if(c.task)openTask(c.task);});
  document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>navigate({view:'tasks',mode:b.dataset.mode}));
@@ -268,17 +270,19 @@ async function refresh() {
    const snapshot = await r.json();
    if (requestId !== refreshId) return;
    graph = snapshot;
+   snapshotFailed = false;
    render();
  } catch {
    if (requestId !== refreshId) return;
-   if (graph) { connection='offline'; render(); }
+   snapshotFailed = true;
+   if (graph) render();
    else app.innerHTML='<p class="loading">无法读取本地快照，请刷新重试。</p>';
  }
 }
 function updateConnection(value) {
  connection=value;
  const indicator=document.querySelector('#connection');
- if (indicator) { indicator.className=`connection ${value==='live'?'live':''}`; indicator.innerHTML=`<i></i>${value==='offline'?'连接中断，重连中':'本地快照'}<span class="optional"> · 只读</span>`; }
+ if (indicator) { indicator.className=`connection ${connection==='live'&&!snapshotFailed?'live':''}`; indicator.innerHTML=`<i></i>${connectionLabel()}<span class="optional"> · 只读</span>`; }
 }
 refresh();
 const events=new EventSource('/events');

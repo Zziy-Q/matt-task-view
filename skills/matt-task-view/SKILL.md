@@ -14,11 +14,13 @@ Matt Pocock Skills 负责规划与实施，Matt Dev View 负责只读展示开�
 - 规格使用 `.scratch/<feature>/spec.md`，票据按 [ticket-contract.md](./references/ticket-contract.md) 保存到 `.scratch/<feature>/issues/`；本视图不读取远端 issue tracker。
 - 任务视图服务不在运行时调用 Skills。已有符合契约的文件可独立查看；启动视图不会生成规格、票据或执行代码开发。
 
+启动前先确认 `matt-task-view` 命令可用；安装与路径配置见工具仓库 README。若使用绝对路径启动，从目标项目根目录执行 `node /实际路径/matt-task-view/src/cli.mjs serve --port 0`，不要切换到工具目录读取错项目。
+
 ## 1. 在任务拆分前完成架构门禁
 
 固定顺序是：**正式规格完成 → 架构影响判断 → `/to-tickets` 发布票据**。不得先发布 issues 再补架构决定。
 
-在 `.scratch/<feature>/architecture/decision.json` 记录是否存在组件、接口、数据流、信任边界、外部依赖或部署结构变化：
+先读取 [architecture-contract.md](./references/architecture-contract.md) 的完整 JSON 与内置 Archify 命令。在 `.scratch/<feature>/architecture/decision.json` 记录是否存在组件、接口、数据流、信任边界、外部依赖或部署结构变化；`schemaVersion: 1`、`required`、`mode`、`reason` 均必填：
 
 - 无架构影响时写 `required=false`，并填写非空的中文跳过理由 `reason`；不得用缺少架构目录代替决定。
 - `greenfield` 从“规划架构 v0”开始，当前架构为不存在，不制造现状图。
@@ -30,7 +32,7 @@ Matt Pocock Skills 负责规划与实施，Matt Dev View 负责只读展示开�
 
 读取 [ticket-contract.md](./references/ticket-contract.md)。`/to-tickets` 只为已批准规划架构或有非空跳过理由的功能发布票据。架构相关票据必须填写批准的 `architecture_revision` 和稳定组件 ID 组成的 `affects`；`depends_on` 仍只表达任务执行依赖。
 
-保留 Matt 标题、`Blocked by`、triage `Status` 和 checklist。改变可见任务状态时，在同一票据中同步更新 frontmatter 与 checklist。
+保留 Matt 标题、`Blocked by`、triage `Status` 和 checklist。开发状态更新到 frontmatter 的 `status`；正文 triage `Status` 仍只表示分诊角色。验收清单按实际实现与验收记录独立更新，不随工单 `done` 自动勾选。
 
 ## 3. 自动打开只读任务视图
 

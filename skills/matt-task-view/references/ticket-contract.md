@@ -37,8 +37,10 @@ affects:
 
 Acceptance criteria use three local Markdown markers:
 
-- `[ ]` 表示尚未实现，显示为 `○`。
+- `[ ]` 表示未勾选、待核对，显示为 `○`；不能据此判断代码尚未实现。
 - `[~]` 表示已实现但尚未验收，显示为绿色 `▲`。
 - `[x]` 表示验收完成，显示为 `☑`。
 
-只有 `[x]` 计为验收完成。
+只有 `[x]` 计为验收完成。工单 `status: done` 与验收记录独立，不自动勾选清单，也不代表已交付。
+
+无架构影响的完整 `decision.json`、规划与实际复核模板见 [架构契约](./architecture-contract.md)。

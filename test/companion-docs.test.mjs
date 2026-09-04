@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { buildTaskGraph } from "../src/task-graph.mjs";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
@@ -74,4 +80,43 @@ test("README gives a short architecture-first local flow without duplicating the
   assert.match(readme, /existing[^\n]+当前基线/);
   assert.match(readme, /actual[^\n]+长期基线/);
   assert.doesNotMatch(readme, /approvedReviewSha256/);
+});
+
+
+test("documented minimal ticket and architecture examples run without external dependencies or approval", async () => {
+  const readme = await text("README.md");
+  const contract = await text("skills/matt-task-view/references/architecture-contract.md");
+  const jsonBlocks = [...contract.matchAll(/```json\n([\s\S]*?)\n```/g)].map((match) => JSON.parse(match[1]));
+  const ticket = [...readme.matchAll(/```markdown\n([\s\S]*?)\n```/g)].find((match) => match[1].startsWith("---\n"))[1];
+  const temporary = await mkdtemp(join(tmpdir(), "matt-docs-"));
+  try {
+    const feature = join(temporary, ".scratch", "example-feature");
+    const directory = join(feature, "architecture");
+    await mkdir(join(feature, "issues"), { recursive: true });
+    await mkdir(directory);
+    await writeFile(join(feature, "issues", "01.md"), ticket);
+    const readmeDecision = JSON.parse(readme.match(/```json\n([\s\S]*?)\n```/)[1]);
+    assert.deepEqual(readmeDecision, jsonBlocks[0]);
+    await writeFile(join(directory, "decision.json"), JSON.stringify(readmeDecision));
+    const withoutArchitecture = await buildTaskGraph(temporary);
+    assert.equal(withoutArchitecture.architectures[0].status, "not_required");
+    assert.deepEqual(withoutArchitecture.frontier, ["example-feature/01"]);
+
+    await writeFile(join(directory, "decision.json"), JSON.stringify(jsonBlocks[1]));
+    const input = join(directory, "system.architecture.json");
+    const output = join(directory, "system.architecture.html");
+    await writeFile(input, JSON.stringify(jsonBlocks[2]));
+    const archify = fileURLToPath(new URL("vendor/archify/bin/archify.mjs", root));
+    const options = { env: { ...process.env, ARCHIFY_UPDATE_CHECK_DISABLED: "1" }, timeout: 30_000 };
+    await promisify(execFile)(process.execPath, [archify, "validate", "architecture", input, "--json"], options);
+    const { stdout } = await promisify(execFile)(process.execPath, [archify, "deliver", "architecture", input, output, "--json"], options);
+    assert.equal(JSON.parse(stdout).ok, true);
+    await writeFile(join(directory, "system.architecture.receipt.json"), stdout);
+    const pending = await buildTaskGraph(temporary);
+    assert.equal(pending.architectures[0].status, "pending_approval");
+    assert.equal(pending.architectures[0].developmentGatePassed, false);
+    assert.deepEqual(pending.frontier, []);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 });

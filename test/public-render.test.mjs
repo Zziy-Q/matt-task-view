@@ -9,6 +9,7 @@ async function renderer() {
   const app = element();
   const closeButton = element();
   const listeners = {};
+  const eventListeners = {};
   const inspector = {
     ...element(), open: false,
     querySelector: () => closeButton,
@@ -22,14 +23,14 @@ async function renderer() {
     location, URLSearchParams,
     history: { replaceState: (_state, _title, url) => { location.search = url; } },
     window: { scrollTo() {} },
-    EventSource: class { addEventListener() {} },
+    EventSource: class { addEventListener(name, callback) { eventListeners[name] = callback; } },
     // Initial refresh stays pending; each test supplies its snapshot explicitly.
     fetch: () => new Promise(() => {}),
   });
   runInContext(source, context);
   const run = (expression) => runInContext(expression, context);
   return {
-    run, app, inspector, location,
+    run, app, inspector, location, emit: name => eventListeners[name](),
     load(snapshot, selection = {}) {
       run(`graph = ${JSON.stringify(snapshot)}; state = { view: 'overview', mode: 'list', feature: '', status: 'all', task: '', ...${JSON.stringify(selection)} }; render();`);
     },
@@ -301,4 +302,29 @@ test("empty states and snapshot refresh remain usable without fabricated tasks",
   await ui.run(`fetch = async () => ({ok:true,json:async()=>(${JSON.stringify(next)})}); refresh()`);
   assert.equal(ui.run("counted().total"), 1);
   assert.match(ui.app.innerHTML, /SDD 开发流程/);
+});
+
+test("snapshot recovery clears its warning without masking a disconnected event stream", async () => {
+  const ui = await renderer();
+  ui.load(snapshot({ tasks: [task()] }));
+  await ui.run(`fetch = async () => ({ok:true,json:async()=>graph})`);
+  ui.emit("open");
+  await ui.run("refresh()");
+  assert.match(ui.app.innerHTML, /class="connection live"/);
+
+  await ui.run("fetch = async () => { throw Error('snapshot'); }; refresh()");
+  assert.match(ui.app.innerHTML, /快照读取失败，显示上次结果/);
+  assert.doesNotMatch(ui.app.innerHTML, /连接中断，重连中|class="connection live"/);
+  await ui.run("fetch = async () => ({ok:true,json:async()=>graph}); refresh()");
+  assert.match(ui.app.innerHTML, /class="connection live"/);
+  assert.doesNotMatch(ui.app.innerHTML, /快照读取失败|连接中断/);
+
+  ui.emit("error");
+  await ui.run("refresh()");
+  assert.match(ui.app.innerHTML, /连接中断，重连中/);
+  assert.doesNotMatch(ui.app.innerHTML, /class="connection live"/);
+  ui.emit("open");
+  await ui.run("refresh()");
+  assert.match(ui.app.innerHTML, /class="connection live"/);
+  assert.doesNotMatch(ui.app.innerHTML, /快照读取失败|连接中断/);
 });

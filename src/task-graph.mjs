@@ -47,6 +47,7 @@ function unquote(value) {
 }
 
 function ticketFromSource(source, { feature, path }) {
+  source = source.replaceAll("\r\n", "\n");
   const parsed = parseFrontmatter(source, path);
   if (parsed.error) return { error: parsed.error };
 
@@ -122,6 +123,7 @@ async function issueFiles(issueDirectory) {
 }
 
 function specFromSource(source, { feature, path }) {
+  source = source.replaceAll("\r\n", "\n");
   const title = source.match(/^#\s+(.+)$/m)?.[1]?.trim() || feature;
   const headings = [...source.matchAll(/^##\s+(.+?)\s*$/gm)];
   const sections = Object.fromEntries(headings.map((heading, index) => [
@@ -168,14 +170,16 @@ function validOptionalSha256(value) {
   return value === undefined || SHA256.test(value);
 }
 
-function validDecision(value) {
-  return value?.schemaVersion === 1
-    && typeof value.required === "boolean"
-    && ["greenfield", "existing"].includes(value.mode)
-    && typeof value.reason === "string"
-    && validOptionalSha256(value.currentBaselineSpecificationSha256)
-    && validOptionalSha256(value.approvedSpecificationSha256)
-    && validOptionalSha256(value.approvedArtifactSha256);
+function decisionProblem(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "请提供有效的 decision.json 对象，包含 schemaVersion、required、mode 和 reason。";
+  if (value.schemaVersion !== 1) return "请将 decision.json 的 schemaVersion 设为 1。";
+  if (typeof value.required !== "boolean") return "请将 decision.json 的 required 设为布尔值 true 或 false。";
+  if (!["greenfield", "existing"].includes(value.mode)) return "请将 decision.json 的 mode 设为 greenfield 或 existing。";
+  if (typeof value.reason !== "string") return "请将 decision.json 的 reason 填写为字符串。";
+  for (const key of ["currentBaselineSpecificationSha256", "approvedSpecificationSha256", "approvedArtifactSha256"]) {
+    if (!validOptionalSha256(value[key])) return `decision.json 的 ${key} 必须是 64 位小写十六进制 SHA-256，未记录时请省略该字段。`;
+  }
+  return null;
 }
 
 function validReceipt(value) {
@@ -508,7 +512,8 @@ async function architectureSnapshot(featureRoot, feature) {
   const decision = parseJson(decisionSource);
   const specification = parseJson(specificationSource);
   const receipt = parseJson(receiptSource);
-  const decisionValid = validDecision(decision);
+  const problem = decisionProblem(decision);
+  const decisionValid = !problem;
   const receiptValid = validReceipt(receipt);
   const specificationValid = validArchitectureSpecification(specification);
   const currentSpecification = sha256(specificationSource);
@@ -567,9 +572,9 @@ async function architectureSnapshot(featureRoot, feature) {
     status,
     developmentGatePassed,
     artifactDisplayable,
-    nextStep: decisionValid && decision.required === false && !decision.reason.trim()
+    nextStep: problem || (decision.required === false && !decision.reason.trim()
       ? "请填写非空的无架构影响理由。"
-      : nextSteps[status],
+      : nextSteps[status]),
     lifecycle: {
       current: decision?.mode === "greenfield" ? "absent" : decision?.mode === "existing" ? "recovery_required" : "unknown",
       target: status,

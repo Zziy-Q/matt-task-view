@@ -13,7 +13,7 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 
 ## When a skill says "publish to the issue tracker"
 
-先读取 `skills/matt-task-view/references/ticket-contract.md` 和 `.scratch/<feature-slug>/architecture/decision.json`，再原子判断整组票据能否发布：
+先读取 `skills/matt-task-view/references/ticket-contract.md` 和 `.scratch/<feature-slug>/architecture/decision.json`，再原子判断整组票据能否发布。完整决定字段、内置 Archify 命令与批准规则见 `skills/matt-task-view/references/architecture-contract.md`：
 
 - `required=false` 只在中文跳过理由非空时通过。
 - `required=true` 只在 JSON、HTML、回执齐全，当前摘要与回执、用户批准摘要都精确匹配时通过；`existing` 还必须固定已验证的项目当前基线。

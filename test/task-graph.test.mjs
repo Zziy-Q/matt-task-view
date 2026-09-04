@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { access, mkdtemp, mkdir, unlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -19,6 +19,19 @@ async function createTicket(root, feature, filename, frontmatter, body = "") {
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
+
+test("buildTaskGraph reads LF and CRLF Markdown as the same tasks and specification", async () => {
+  const root = await mkdtemp(join(tmpdir(), "matt-markdown-newlines-"));
+  await createTicket(root, "demo", "01.md", 'id: "01"\nstatus: done\ndepends_on: []\nphase: 实现', '- [x] 已验收\n- [~] 已实现\n- [ ] 待核对');
+  await createTicket(root, "demo", "02.md", 'id: "02"\nstatus: ready\ndepends_on:\n  - "01"');
+  const paths = ["spec.md", "issues/01.md", "issues/02.md"].map(path => join(root, ".scratch", "demo", path));
+  await writeFile(paths[0], '# 功能规格\n\n## 目标\n第一行\n第二行\n\n## 方案\n方案内容\n');
+  const lf = await buildTaskGraph(root);
+  assert.deepEqual(lf.errors, []);
+  assert.deepEqual(lf.frontier, ["demo/02"]);
+  for (const path of paths) await writeFile(path, (await readFile(path, "utf8")).replaceAll("\n", "\r\n"));
+  assert.deepEqual(await buildTaskGraph(root), lf);
+});
 
 test("architecture view marker preserves original tickets and dependency validation", async () => {
   const root = await mkdtemp(join(tmpdir(), "matt-architecture-view-"));
@@ -1115,6 +1128,24 @@ test("buildTaskGraph asks for a non-empty reason when a decision-only feature sk
   assert.equal(graph.architectures[0].nextStep, "请填写非空的无架构影响理由。");
   assert.equal(graph.architectures[0].artifactDisplayable, false);
   assert.deepEqual(graph.frontier, []);
+});
+
+test("invalid no-impact decisions name the invalid field without asking for architecture artifacts", async (t) => {
+  for (const [field, value] of [["schemaVersion", undefined], ["mode", "unknown"], ["required", "false"], ["reason", null], ["approvedSpecificationSha256", "bad"]]) {
+    await t.test(field, async () => {
+      const root = await mkdtemp(join(tmpdir(), "matt-decision-diagnostic-"));
+      const directory = join(root, ".scratch", "demo", "architecture");
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, "decision.json"), JSON.stringify({ schemaVersion: 1, mode: "existing", required: false, reason: "只修改文案。", [field]: value }));
+      await createTicket(root, "demo", "01.md", 'id: "01"\nstatus: ready\ndepends_on: []');
+      const graph = await buildTaskGraph(root);
+      assert.match(graph.architectures[0].nextStep, new RegExp(field));
+      assert.doesNotMatch(graph.architectures[0].nextStep, /HTML|交付回执/);
+      assert.equal(graph.architectures[0].developmentGatePassed, false);
+      assert.equal(graph.architectures[0].artifactDisplayable, false);
+      assert.deepEqual(graph.frontier, []);
+    });
+  }
 });
 
 test("buildTaskGraph requires an approved artifact hash when the decision records one", async () => {

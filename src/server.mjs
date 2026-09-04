@@ -61,11 +61,24 @@ async function architectureFiles(root, feature) {
 export function createTaskViewServer(root) {
   const clients = new Set();
   const workflows = new Map();
-  let fileWatcher;
+  const fileWatchers = new Map();
   let refreshTimer;
 
-  const server = createServer(async (request, response) => {
-    const url = new URL(request.url, "http://127.0.0.1");
+  const server = createServer((request, response) => {
+    handleRequest(request, response).catch(() => {
+      if (response.headersSent) response.destroy();
+      else respond(response, 500, unavailableArtifactHeaders, "Internal Server Error");
+    });
+  });
+
+  async function handleRequest(request, response) {
+    let url;
+    try {
+      url = new URL(request.url, "http://127.0.0.1");
+    } catch {
+      respond(response, 400, unavailableArtifactHeaders, "Bad Request");
+      return;
+    }
     if (request.method !== "GET") {
       respond(response, 405, { Allow: "GET" }, "Method Not Allowed");
       return;
@@ -151,7 +164,7 @@ export function createTaskViewServer(root) {
     }
 
     respond(response, 404, { "Content-Type": "text/plain; charset=utf-8" }, "Not Found");
-  });
+  }
 
   function notifyRefresh() {
     clearTimeout(refreshTimer);
@@ -160,22 +173,66 @@ export function createTaskViewServer(root) {
     }, 30);
   }
 
+  function watchDirectory(path, recursive, onChange) {
+    fileWatchers.get(path)?.close();
+    fileWatchers.delete(path);
+    try {
+      fileWatchers.set(path, watch(path, { recursive }, onChange));
+    } catch (error) {
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+    }
+  }
+
+  function watchArchitecture() {
+    watchDirectory(join(root, "docs", "architecture"), true, notifyRefresh);
+  }
+
+  function watchDocs() {
+    watchDirectory(join(root, "docs"), false, (_, filename) => {
+      if (filename === null || filename === "architecture") {
+        watchArchitecture();
+        notifyRefresh();
+      }
+    });
+    watchArchitecture();
+  }
+
+  function closeWatchers() {
+    for (const watcher of fileWatchers.values()) watcher.close();
+    fileWatchers.clear();
+  }
+
   return {
     async listen(port = 0) {
-      fileWatcher = watch(join(root, ".scratch"), { recursive: true }, notifyRefresh);
-      await new Promise((resolve, reject) => {
-        server.once("error", reject);
-        server.listen({ host: "127.0.0.1", port }, () => {
-          server.off("error", reject);
-          resolve();
+      try {
+        // Observe directory creation without recursively watching unrelated project files.
+        watchDirectory(root, false, (_, filename) => {
+          if (filename === null || filename === "docs") watchDocs();
+          if (filename === null || filename === ".scratch") {
+            watchDirectory(join(root, ".scratch"), true, notifyRefresh);
+          }
+          if (filename === null || filename === "docs" || filename === ".scratch") notifyRefresh();
         });
-      });
+        watchDirectory(join(root, ".scratch"), true, notifyRefresh);
+        watchDocs();
+        await new Promise((resolve, reject) => {
+          server.once("error", reject);
+          server.listen({ host: "127.0.0.1", port }, () => {
+            server.off("error", reject);
+            resolve();
+          });
+        });
+      } catch (error) {
+        closeWatchers();
+        clearTimeout(refreshTimer);
+        throw error;
+      }
       const address = server.address();
       return { url: `http://127.0.0.1:${address.port}/` };
     },
     async close() {
       clearTimeout(refreshTimer);
-      fileWatcher?.close();
+      closeWatchers();
       for (const client of clients) client.end();
       if (!server.listening) return;
       await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

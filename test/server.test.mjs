@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, symlink, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -206,4 +206,43 @@ test("local server notifies connected pages when tickets change", async (t) => {
   ]);
 
   assert.match(new TextDecoder().decode(nextEvent.value), /event: refresh/);
+});
+
+test("local server refreshes for an existing or newly created project architecture baseline", async (t) => {
+  for (const existing of [true, false]) {
+    await t.test(existing ? "existing baseline" : "baseline created after startup", async (t) => {
+      const root = await mkdtemp(join(tmpdir(), "matt-baseline-watch-"));
+      await createTicket(root);
+      const directory = join(root, "docs", "architecture");
+      if (existing) await mkdir(directory, { recursive: true });
+      const app = createTaskViewServer(root);
+      const { url } = await app.listen();
+      // Let pre-listen filesystem events settle before subscribing to baseline-only edits.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const controller = new AbortController();
+      const events = await fetch(`${url}events`, { signal: controller.signal });
+      const reader = events.body.getReader();
+      t.after(async () => {
+        controller.abort();
+        await app.close();
+        await rm(root, { recursive: true, force: true });
+      });
+      await reader.read();
+      if (!existing) await mkdir(directory, { recursive: true });
+      const source = JSON.stringify({ components: [] });
+      await writeFile(join(directory, "system.architecture.json"), source);
+      let timeout;
+      try {
+        const event = await Promise.race([
+          reader.read(),
+          new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("Baseline did not trigger refresh")), 1_000); }),
+        ]);
+        assert.match(new TextDecoder().decode(event.value), /event: refresh/);
+        const graph = await (await fetch(`${url}api/snapshot`)).json();
+        assert.equal(graph.projectBaseline.hashes.currentSpecification, digest(source));
+      } finally {
+        clearTimeout(timeout);
+      }
+    });
+  }
 });

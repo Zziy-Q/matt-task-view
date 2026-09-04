@@ -1,6 +1,10 @@
 {
   "name": "matt-task-view",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "private": true,
   "type": "module",
   "bin": {
